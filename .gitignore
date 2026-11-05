@@ -33,3 +33,7 @@ CMakeUserPresets.json
 *.o
 smartfilter
 level1/smartfilter
+
+# Python service/test bytecode
+__pycache__/
+*.py[cod]

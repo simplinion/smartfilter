@@ -242,8 +242,8 @@ static void boundary(level4_context *state, sf_output *output, bool begin)
         length = snprintf(buffer, sizeof(buffer), "[event %zu end]\n", state->event.id);
     }
     if (!state->at_line_start)
-        sf_emit(output, (sf_line){.data = "\n", .length = 1});
-    sf_emit(output, (sf_line){.data = buffer, .length = (size_t)length});
+        sf_emit(output, (sf_line){.data = "\n", .length = 1, .event = &state->event});
+    sf_emit(output, (sf_line){.data = buffer, .length = (size_t)length, .event = &state->event});
     state->at_line_start = true;
 }
 

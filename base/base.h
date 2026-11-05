@@ -31,6 +31,8 @@ typedef struct {
     size_t original_length;
     const sf_event *event;
     sf_event_part event_part;
+    bool has_similarity;
+    float similarity; /* Cosine score, not a probability. */
     uint64_t hash; /* Set by the pipeline; hash of all length bytes. */
 } sf_line;
 

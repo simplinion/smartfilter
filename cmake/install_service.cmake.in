@@ -1,0 +1,25 @@
+# Executed at installation time: no model/network/service work during configure.
+if(NOT "$ENV{DESTDIR}" STREQUAL "")
+    message(STATUS "DESTDIR staging: embedding service activation skipped")
+    return()
+endif()
+find_program(_smartfilter_python NAMES python3)
+if(NOT _smartfilter_python)
+    message(FATAL_ERROR "Python 3.11+ is required to set up the embedding service")
+endif()
+set(_smartfilter_data "@CMAKE_INSTALL_DATADIR@")
+if(NOT IS_ABSOLUTE "${_smartfilter_data}")
+    set(_smartfilter_data "${CMAKE_INSTALL_PREFIX}/${_smartfilter_data}")
+endif()
+execute_process(
+    COMMAND "${_smartfilter_python}"
+        "${_smartfilter_data}/smartfilter/install_service.py"
+        --prefix "${CMAKE_INSTALL_PREFIX}"
+        --bindir "@CMAKE_INSTALL_BINDIR@"
+        --datadir "@CMAKE_INSTALL_DATADIR@"
+        --model-source "@CMAKE_CURRENT_BINARY_DIR@/semantic-model"
+    RESULT_VARIABLE _smartfilter_service_result
+)
+if(NOT _smartfilter_service_result EQUAL 0)
+    message(FATAL_ERROR "Embedding service setup failed. See the error above. To install only the binaries, configure -DSMARTFILTER_INSTALL_SERVICE=OFF.")
+endif()

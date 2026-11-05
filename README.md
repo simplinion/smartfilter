@@ -18,6 +18,16 @@ Własny katalog instalacji można ustawić podczas konfiguracji przez
 CMake zachowuje wcześniej zapisany prefiks; aby go zmienić, użyj
 `cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/.local"`.
 
+`cmake --install build` domyślnie przygotowuje również usługę embeddingów:
+tworzy venv, instaluje zależności, przygotowuje model i włącza oraz uruchamia
+`smartfilter-embeddings.service` w `systemd --user`. Wymaga Python 3.11+,
+modułu `venv` i działającej sesji systemd użytkownika. Pierwsza instalacja
+potrzebuje internetu; model ma około 490 MB (gotowy model z
+`build/semantic-model` jest kopiowany). Kolejne instalacje wykorzystują
+zweryfikowane pliki i restartują usługę. Instalację samego programu wybierz
+przez `-DSMARTFILTER_INSTALL_SERVICE=OFF` podczas konfiguracji CMake.
+Przy pakowaniu przez `DESTDIR` aktywacja usługi jest pomijana.
+
 `main.c` czyta stdin po jednej linii i przekazuje ją przez zarejestrowane
 poziomy, w kolejności tablicy `levels`. Domyślnie output pozostaje bez zmian.
 
@@ -354,9 +364,10 @@ Level 3 wypisuje output levelu 2, włącznie ze skrótami, ale do klasyfikacji
 używa oryginalnej linii wejściowej zapisanej w `sf_line.original` i
 `sf_line.original_length`. Transformacje jednej linii zachowują tę informację;
 level 2 kopiuje ją podczas buforowania. Syntetyczne podsumowania nie mają
-jednej oryginalnej linii. Podsumowania
-`[repeat]` i definicje ścieżek są traktowane jako `unknown`, bo mogą zawierać
-informacje z różnych kategorii. Nagłówki diagnostyk, fragmenty kodu z numerem
+jednej oryginalnej linii. Wygenerowane podsumowania `[repeat]` dostają
+`summary` i pozostają widoczne przy każdym wyborze `--show`, bo mogą zawierać
+informacje z różnych kategorii. Definicje ścieżek pozostają `unknown`.
+Nagłówki diagnostyk, fragmenty kodu z numerem
 linii i podkreślenia problemu dostają `diagnostic`; level 3 zachowuje je
 niezależnie od wyboru kategorii.
 
@@ -390,6 +401,8 @@ Kategoria `stats` obejmuje wiersze pomiarowe, np. rozmiar pliku i jego udział:
 
 ```text
 [stats]      modules.dmp                          174.66 KB      49.4%
+[stats]      dmod_vars.c                    |       840B |        28B
+[stats]      TOTAL                          |        1kB |       69kB
 ```
 
 Wybór: `--show stats` albo np. `--show progress,result,stats,error,warning`.
@@ -397,8 +410,18 @@ Model korzysta z cech rozmiaru z jednostką (`B`, `bytes`, `KB`, `KiB`, `MB`,
 `MiB`, `GB`, `GiB`, `TB`, `TiB`) i procentu; nie musi znać nazwy pliku.
 Obsługiwane są ułamki z kropką lub przecinkiem. Sam procent w nagłówku
 `[49%] Building …` nie oznacza statystyk. Jawne ERROR/WARNING nadal mają
-pierwszeństwo. Tabele z wieloma kolumnami rozdzielonymi `|` pozostają
-zachowane jako `unknown`; nie są automatycznie traktowane jako kod źródłowy.
+pierwszeństwo. Wiersze tabel rozdzielonych `|`, z nazwą i co najmniej dwiema
+kolumnami rozmiarów, rozpoznaje reguła `stats`, niezależnie od nazwy pliku.
+Nagłówki raportów pamięci (`Memory Usage Analysis for: …`, `File | RAM | ROM`,
+`Component Size %`) i podsumowania pojemności również dostają `stats`.
+Inne tabele pozostają `unknown`.
+
+Rozpoznawanie typowych komunikatów builda uzupełniają reguły niezależne od
+nazw celów: `Creating`, `Embedding`, `Unpacking` i pobieranie modułów to
+`progress`; `Installed: pakiet@wersja`, utworzony pakiet DMP i zapis raportu
+JSON to `result`. Nagłówki i parametry pakowania są `info`, a samodzielne
+ścieżki plików i nagłówki listingów to `listing`. Reguły językowe uzupełniają
+niepewne wyniki sieci, zachowując pierwszeństwo jawnych błędów i ostrzeżeń.
 
 Kategoria `formatting` oznacza dekoracyjne separatory. Rozpoznawana jest
 regułą: co najmniej cztery jednakowe znaki `=`, `-` lub `*`, z opcjonalnymi
@@ -411,8 +434,9 @@ białymi znakami dookoła i kolorami ANSI. Przykład:
 Można ją wybrać przez `--show formatting`, np. połączyć z wynikami przez
 `--show result,formatting`. Nie jest dodawana do modelu neuronowego —
 wykrywanie samej dekoracji jest deterministyczne i nie wymaga treningu.
-Linie zawierające tekst (`=== Memory usage ===`), mieszane znaki ramek,
-wielokropki, puste linie i podkreślenia diagnostyczne (`^^^^`, `~^~~~`)
+Puste linie i obramowania tabel typu `-----+-----+-----` również są
+`formatting`. Linie zawierające tekst (`=== Memory usage ===`),
+wielokropki i podkreślenia diagnostyczne (`^^^^`, `~^~~~`)
 nie są traktowane jako dekoracyjny separator. Rozpoznawanie korzysta
 z oryginalnej linii, także po kompaktowaniu i buforowaniu.
 
@@ -557,3 +581,27 @@ fragmenty są wypisywane bez grupowania. Osierocony kontekst jest wypisywany
 również przy EOF. Tryb `--events` dodaje znaczniki i, jeśli potrzeba, newline
 przed znacznikiem; `--group-diagnostics` nie dodaje żadnych bajtów. Linie
 odrzucone przez wcześniejsze poziomy nie mogą zostać odzyskane przez level 4.
+
+Level 5 dodaje wyszukiwanie semantyczne przez lokalną, stale działającą
+usługę embeddingów E5. Usługa ładuje model raz, a klient w C korzysta
+z gniazda Unix. Włączanie levelu 5 jest jawne:
+
+```sh
+# Podgląd podobieństwa całych zdarzeń, bez odrzucania tekstu:
+komenda 2>&1 | smartfilter --query "problemy z pamięcią"
+
+# Filtrowanie dopiero po podaniu progu:
+komenda 2>&1 | smartfilter --query "problemy z pamięcią" --min-score 0.82
+```
+
+Model obsługuje polskie zapytania i angielskie logi. Wynik kosinusa nie jest
+prawdopodobieństwem; próg trzeba sprawdzać na swoich danych. Błąd z kodem
+źródłowym i caretami jest jedną jednostką: całość zostaje albo całość jest
+odrzucana. Brak usługi, timeout lub błędne wektory powodują przepuszczenie
+nieocenionych danych i komunikat na stderr. Klient smartfilter korzysta
+z przygotowanej usługi: sam nie uruchamia Pythona, nie pobiera modeli
+i nie wysyła logów do zewnętrznego API.
+
+CMake instaluje także skrypty usługi, downloader i jednostkę `systemd --user`
+oraz domyślnie przygotowuje i uruchamia usługę. Szczegóły instalacji, limity, protokół
+oraz test prawdziwych embeddingów opisuje [service/README.md](service/README.md).

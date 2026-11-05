@@ -1,0 +1,50 @@
+progress	[  1%] Unpacking splash logo /work/assets/logo.dmvi into build/ext (/ext/views/splash_logo.dmvir)
+progress	Analyzing memory usage for dmosi
+progress	[ 67%] Downloading flash modules from: /work/configs/flash.dmd;/work/board/flash.dmd; main module: systemd; shell: dmell
+progress	Downloading flash modules...
+progress	[ 68%] Creating modules dmp file from flash modules (if any exist)...
+progress	Creating DMP package...
+progress	[ 89%] Creating root_fs filesystem image from /work/build/root
+progress	[ 90%] Embedding config_fs filesystem into section .embedded.config_fs
+progress	[ 92%] Conditionally embedding modules.dmp if it exists
+progress	Checking for modules.dmp...
+progress	Embedding modules.dmp
+progress	Analyzing memory usage from dmboot.map
+progress	Generating memory usage report...
+progress	Downloading sdcard modules from /work/configs/sdcard.dmd...
+progress	Downloading ext modules from /work/configs/ext.dmd...
+progress	[8/14] Downloading module: memory
+progress	[2/40] Downloading module: zqxv
+result	Installed: memory@0.9
+result	Installed: dmi2c@0.3
+result	Installed: arbitrary_package@>=0.3<1.0
+result	DMP package 'modules' was successfully created at '/work/build/modules.dmp'
+result	DMP package 'different' was successfully created at '/another/image.dmp'
+result	JSON report saved to: /work/build/memory_report.json
+result	Image of the bank A: /work/build/dmboot_bank_A.bin
+info	=== Installation Summary ===
+info	  Package name: modules
+info	  Input directory: /work/build/dmf
+info	  Output file: /work/build/modules.dmp
+info	  Main module: systemd
+stats	  Memory Usage Analysis for: dmosi
+stats	  Memory Usage Analysis for: unfamiliar_target
+stats	  File                           |        RAM |        ROM
+stats	Found modules.dmp: 174.66 KB
+stats	                  ROM (Flash) Memory Usage                  
+stats	Component                                 Size          %
+stats	Total Capacity                       383.50 KB           
+stats	                      RAM Memory Usage                      
+stats	heap (available)                     227.76 KB           
+stats	Total Capacity                       256.00 KB           
+stats	/work/build/dmboot_bank_A.bin: 370696 bytes, version 1793901469
+formatting	
+formatting	  
+formatting	  -------------------------------+------------+-----------
+listing	Contents of /work/build/dmf:
+listing	total 260
+listing	/work/build/dmf/automount.dmfc
+listing	/work/build/dmf/libsystemd.dmfc
+listing	./build/dmf/automount.dmfc
+listing	../build/dmf/console.dmfc
+listing	$build/dmf/systemd.dmfc

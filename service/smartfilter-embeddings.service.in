@@ -1,0 +1,14 @@
+[Unit]
+Description=Smartfilter local embedding service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/smartfilter/venv/bin/python "@CMAKE_INSTALL_FULL_BINDIR@/smartfilter-embeddings" --model-dir %h/.local/share/smartfilter/models/e5
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

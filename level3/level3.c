@@ -6,14 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Model categories keep their exported order; formatting/listing are rule categories. */
+/* Model categories keep their exported order; later categories use rules. */
 typedef char model_categories_match[(L3_CLASSES == CATEGORY_FORMATTING) ? 1 : -1];
 
 #define TEXT_LIMIT 4096
 #define WORD_LIMIT 63
 
 static const char *const names[CATEGORY_COUNT] = {
-    "progress", "error", "warning", "info", "result", "stats", "version", "unknown", "formatting", "listing", "diagnostic"
+    "progress", "error", "warning", "info", "result", "stats", "version", "unknown", "formatting", "listing", "diagnostic", "summary"
 };
 
 const char *level3_category_name(log_category category)
@@ -435,6 +435,187 @@ static bool diagnostic_context(const char *text)
     return strncmp(text, "In file included from ", 22) == 0;
 }
 
+/* A memory report row has a label followed by at least two size columns.
+ * Match whole cells so arbitrary tables and compiler source stay untouched. */
+static bool memory_size_cell(const char *start, const char *end)
+{
+    while (start < end && whitespace((unsigned char)*start))
+        ++start;
+    while (end > start && whitespace((unsigned char)end[-1]))
+        --end;
+    const char *number = start;
+    while (start < end && *start >= '0' && *start <= '9')
+        ++start;
+    if (start == number)
+        return false;
+    if (start < end && (*start == '.' || *start == ',')) {
+        const char *fraction = ++start;
+        while (start < end && *start >= '0' && *start <= '9')
+            ++start;
+        if (start == fraction)
+            return false;
+    }
+    while (start < end && whitespace((unsigned char)*start))
+        ++start;
+    char unit[6];
+    size_t length = (size_t)(end - start);
+    if (!length || length >= sizeof(unit))
+        return false;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char ch = (unsigned char)start[i];
+        unit[i] = (char)(ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch);
+    }
+    unit[length] = '\0';
+    const char *units[] = {"b", "byte", "bytes", "kb", "kib", "mb", "mib",
+                           "gb", "gib", "tb", "tib"};
+    for (size_t i = 0; i < sizeof(units) / sizeof(units[0]); ++i)
+        if (strcmp(unit, units[i]) == 0)
+            return true;
+    return false;
+}
+
+static bool memory_table_row(const char *text)
+{
+    while (*text && whitespace((unsigned char)*text))
+        ++text;
+    const char *separator = strchr(text, '|');
+    if (!separator || separator == text)
+        return false;
+    size_t columns = 0;
+    do {
+        const char *start = separator + 1;
+        separator = strchr(start, '|');
+        const char *end = separator ? separator : start + strlen(start);
+        if (!memory_size_cell(start, end))
+            return false;
+        ++columns;
+    } while (separator);
+    return columns >= 2;
+}
+
+static bool starts(const char *text, const char *prefix)
+{
+    return strncmp(text, prefix, strlen(prefix)) == 0;
+}
+
+/* Recognize common build grammar independently of target names. Language
+ * rules are fallbacks for uncertain neural predictions; explicit severities
+ * and compiler excerpts retain priority. No catch-all category is assigned. */
+static log_category build_rule(const char *input)
+{
+    char text[TEXT_LIMIT + 1];
+    size_t length = 0;
+    for (; *input; ++input) {
+        unsigned char ch = (unsigned char)*input;
+        if (whitespace(ch)) {
+            if (length && text[length - 1] != ' ')
+                text[length++] = ' ';
+        } else {
+            text[length++] = (char)(ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch);
+        }
+    }
+    if (length && text[length - 1] == ' ')
+        --length;
+    text[length] = '\0';
+    if (!length)
+        return CATEGORY_FORMATTING;
+
+    /* Table borders consist of complete runs, not headings or carets. */
+    size_t segment = 0, joints = 0;
+    bool border = true;
+    for (size_t i = 0; i < length; ++i) {
+        if (text[i] == '-' || text[i] == '=')
+            ++segment;
+        else if (text[i] == '+' && segment >= 3) {
+            ++joints;
+            segment = 0;
+        } else {
+            border = false;
+            break;
+        }
+    }
+    if (border && joints && segment >= 3)
+        return CATEGORY_FORMATTING;
+
+    if (strcmp(text, "file | ram | rom") == 0 ||
+        strcmp(text, "component size %") == 0 ||
+        starts(text, "memory usage analysis for: ") ||
+        strcmp(text, "rom (flash) memory usage") == 0 ||
+        strcmp(text, "ram memory usage") == 0)
+        return CATEGORY_STATS;
+    if (starts(text, "total capacity ") || starts(text, "heap (available) ") ||
+        starts(text, "found ")) {
+        for (const char *at = text; *at; ++at)
+            if ((at == text || at[-1] == ' ') && memory_size_cell(at, text + length))
+                return CATEGORY_STATS;
+    }
+    /* Artifact size/version summaries emitted by image creation tools. */
+    char *version = strstr(text, " bytes, version ");
+    const char *size = strchr(text, ':');
+    if (version && strchr(text, '/') && size && size < version &&
+        memory_size_cell(size + 1, version + strlen(" bytes"))) {
+        const char *at = version + strlen(" bytes, version ");
+        if (*at >= '0' && *at <= '9') {
+            while (*at >= '0' && *at <= '9')
+                ++at;
+            if (!*at)
+                return CATEGORY_STATS;
+        }
+    }
+    if (starts(text, "contents of "))
+        return CATEGORY_LISTING;
+    if (starts(text, "total ")) {
+        const char *at = text + 6;
+        if (*at >= '0' && *at <= '9') {
+            while (*at >= '0' && *at <= '9')
+                ++at;
+            if (!*at)
+                return CATEGORY_LISTING;
+        }
+    }
+    if ((text[0] == '/' || starts(text, "./") || starts(text, "../") ||
+         (text[0] == '$' && strchr(text, '/'))) &&
+        !strchr(text, ' ') && !strchr(text, ':') && !strchr(text, '|'))
+        return CATEGORY_LISTING;
+
+    const char *metadata[] = {"package name: ", "input directory: ", "output file: ",
+                              "main module: ", "=== installation summary ==="};
+    for (size_t i = 0; i < sizeof(metadata) / sizeof(metadata[0]); ++i)
+        if (starts(text, metadata[i]))
+            return CATEGORY_INFO;
+    if (starts(text, "json report saved to: ") || starts(text, "image of the bank ") ||
+        (starts(text, "dmp package '") && strstr(text, "' was successfully created at '")))
+        return CATEGORY_RESULT;
+    if (starts(text, "installed: ") && package_version(text + 11, length - 11))
+        return CATEGORY_RESULT;
+
+    /* Strip only numeric CMake percentages or n/total counters. */
+    const char *message = text;
+    if (*message == '[') {
+        const char *at = message + 1;
+        bool number = false, counter = false;
+        while ((*at >= '0' && *at <= '9') || *at == ' ' || *at == '%' || *at == '/') {
+            number |= *at >= '0' && *at <= '9';
+            counter |= *at == '%' || *at == '/';
+            ++at;
+        }
+        if (*at == ']' && at[1] == ' ' && number && counter)
+            message = at + 2;
+    }
+    const char *actions[] = {"downloading ", "building ", "linking ", "unpacking ",
+                             "creating ", "embedding ", "conditionally embedding ",
+                             "checking for ", "analyzing memory usage ",
+                             "generating memory usage report"};
+    for (size_t i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i)
+        if (starts(message, actions[i])) {
+            if (strstr(message, "failed") || strstr(message, "error") ||
+                strstr(message, "cannot") || strstr(message, "unable"))
+                return CATEGORY_UNKNOWN;
+            return CATEGORY_PROGRESS;
+        }
+    return CATEGORY_UNKNOWN;
+}
+
 level3_prediction level3_classify(sf_line line)
 {
     level3_prediction prediction = {.category = CATEGORY_UNKNOWN};
@@ -472,6 +653,22 @@ level3_prediction level3_classify(sf_line line)
     /* Keep diagnostics, metadata, binary data and oversized lines visible. */
     if (!readable)
         return prediction;
+    if (!line.original && strstr(text, "[repeat]")) {
+        prediction.category = CATEGORY_SUMMARY;
+        prediction.scores[CATEGORY_SUMMARY] = 1;
+        return prediction;
+    }
+    log_category rule = build_rule(text);
+    if (rule == CATEGORY_FORMATTING || rule == CATEGORY_STATS || rule == CATEGORY_LISTING) {
+        prediction.category = rule;
+        prediction.scores[rule] = 1;
+        return prediction;
+    }
+    if (memory_table_row(text)) {
+        prediction.category = CATEGORY_STATS;
+        prediction.scores[CATEGORY_STATS] = 1;
+        return prediction;
+    }
     size_t first = 0;
     while (first < length && whitespace((unsigned char)text[first]))
         ++first;
@@ -498,6 +695,8 @@ level3_prediction level3_classify(sf_line line)
      * confident semantic progress/result predictions may still refine it. */
     if (severity == LOG_INFO)
         prediction.category = CATEGORY_INFO;
+    else if (rule != CATEGORY_UNKNOWN)
+        prediction.category = rule;
     float features[L3_FEATURES] = {0};
     extract(line, features);
     if (content_words(features) < 2)
@@ -521,7 +720,7 @@ static const char *category_color(log_category category)
 {
     static const char *const colors[CATEGORY_COUNT] = {
         "\x1b[0;36m", "\x1b[0;1;31m", "\x1b[0;1;33m", "\x1b[0;37m",
-        "\x1b[0;1;32m", "\x1b[0;35m", "\x1b[0;36m", "\x1b[0;37m", "\x1b[0;2;37m", "\x1b[0;34m", "\x1b[0;2;37m"
+        "\x1b[0;1;32m", "\x1b[0;35m", "\x1b[0;36m", "\x1b[0;37m", "\x1b[0;2;37m", "\x1b[0;34m", "\x1b[0;2;37m", "\x1b[0;36m"
     };
     return colors[category];
 }
@@ -555,8 +754,9 @@ static bool filter(void *context, const void *config, sf_line line, sf_output *o
         return true;
     level3_prediction result = level3_classify(line);
     ++state->counts[result.category];
-    /* Keep unknown data and compiler context visible under every selection. */
-    if (result.category != CATEGORY_UNKNOWN && result.category != CATEGORY_DIAGNOSTIC && !(options->show & (1u << result.category))) {
+    /* Keep unknown data, compiler context and mixed block summaries visible. */
+    if (result.category != CATEGORY_UNKNOWN && result.category != CATEGORY_DIAGNOSTIC &&
+        result.category != CATEGORY_SUMMARY && !(options->show & (1u << result.category))) {
         ++state->lines_dropped;
         return false;
     }

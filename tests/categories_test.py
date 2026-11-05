@@ -41,7 +41,7 @@ for sample in ['[ERROR] Building target\n', '\x1b[34m[WARNING] Downloading modul
 for sample in ['blorp zqxv unknowntext\n', '| building downloading\n', '^~~~\n',
                '$build = /project/build\n', '[paths]\n',
                '[59/59] [repeat] find (13 lines; like mv)\n',
-               'x' * 5000 + '\n', 'bytes\x00data\n', '\n',
+               'x' * 5000 + '\n', 'bytes\x00data\n',
                'JSON report saved to: $build/memory_report.json\n',
                '... more output ...\n']:
     assert run(sample, '--show=result') == sample
@@ -93,16 +93,50 @@ for sample in ['[49%] Building C object fw.o\n', '[49%] Linking C executable fw\
     assert run(sample, '--classify') == '[progress]   ' + sample
 assert run('[ERROR] Memory limit: 100 KB 99%\n', '--classify').startswith('[error]')
 assert run('[WARNING] Memory limit: 100 KB 99%\n', '--classify').startswith('[warning]')
+# RAM/ROM table rows are structural statistics even without percentages or
+# familiar filenames. Headers and arbitrary pipe-separated text are excluded.
+memory_rows = [
+    '     dmod_vars.c                    |       840B |        28B\n',
+    '     dmod_ctx.c                     |         8B |        1kB\n',
+    '     dmod_hlp.c                     |         0B |        1kB\n',
+    '     dmod_mgr.c                     |         4B |      1012B\n',
+    '     dmod_if_proc.c                 |       800B |       601B\n',
+    '     Dmod.cpp.o                     |         0B |       428B\n',
+    '     TOTAL                          |        1kB |       69kB\n',
+    '  foo.c | 5B | 5kB\n',
+    '$build/random.xyz\t| 1.25 KiB | 2,5 MB | 12 bytes\r\n',
+    '\x1b[32mfile.o | 0 B | 5 KB\x1b[0m\n',
+    'TOTAL | 0B | 0B',
+]
+for sample in memory_rows:
+    assert run(sample, '--classify') == '[stats]      ' + sample
+    assert run(sample, '--show=stats') == sample
+    assert run(sample, '--show=result,progress') == ''
+table = ''.join(memory_rows[:7])
+for flags in [('-c',), ('-cpb',)]:
+    display = run(table, *flags)
+    assert run(table, *flags, '--classify') == ''.join(
+        '[stats]      ' + row for row in display.splitlines(keepends=True))
+for sample in ['a | b\n', 'file | 5B\n',
+               'file | 5B | notes\n', 'file | 5B | 12B junk\n',
+               'file | 1. B | 5kB\n', 'file | 5 | 12\n',
+               'file | 5B | 12B | text\n', 'file | 5B | 12B |\n',
+               ' | 5B | 12B\n', 'file | -5B | 12B\n']:
+    assert run(sample, '--classify').startswith('[unknown]'), sample
+assert run('[WARNING] TOTAL | 1kB | 69kB\n', '--classify').startswith('[warning]')
+assert run('[ERROR] TOTAL | 1kB | 69kB\n', '--classify').startswith('[error]')
+assert run('315 | 5B | 12B\n', '--classify').startswith('[diagnostic]')
 # Pure visual separators have a deterministic formatting category, not an
 # additional neural output. Text headings and diagnostic marks are excluded.
 for sample in ['=' * 60 + '\n', '----------------------\n', '********\n',
+               '----+----\n', '  -----+------+-----\n', '\n', '  \t\r\n',
                ' \t======== \r\n', '\x1b[34m========\x1b[0m\n', '====']:
     assert run(sample, '--classify') == '[formatting] ' + sample
     assert run(sample, '--show=formatting') == sample
     assert run(sample, '--show=progress') == ''
     assert run(sample) == sample
 for sample in ['=== Memory usage ===\n', '--- build failed ---\n', '...\n',
-               '^^^^^^\n', '~^~~~~\n', '==\n', '----+----\n', '\n']:
+               '^^^^^^\n', '~^~~~~\n', '==\n']:
     assert not run(sample, '--classify').startswith('[formatting]')
 assert run('Building C object a.o\n========\n', '-cb', '--classify') == (
     '[progress]   Building C object a.o\n[formatting] ========\n')
@@ -230,6 +264,29 @@ for flags in [(), ('-c',), ('-cpb',)]:
 for sample in ['  File | RAM | ROM\n', '  foo.c | 5B | 5kB\n', 'a | b\n',
                '====\n', '~~~~\n', '[WARNING] failure | details\n']:
     assert not run(sample, '--classify').startswith('[diagnostic]')
+# Reviewed formats captured from a complete dmod-boot build, including
+# headers, whitespace, metadata, artifact reports and unseen target names.
+fixture = Path(__file__).with_name('fixtures') / 'build_categories.tsv'
+for row in fixture.read_text().splitlines():
+    category, text = row.split('\t', 1)
+    sample = text + '\n'
+    assert run(sample, '--classify') == f'[{category}]'.ljust(13) + sample, row
+    assert run(sample, '--show=' + category) == sample, row
+    assert run(sample, '--show=unknown') == '', row
+# Prefix compaction, buffering and path rewrites still classify originals.
+text = ''.join(row.split('\t', 1)[1] + '\n' for row in fixture.read_text().splitlines())
+display = run(text, '-cpb')
+classified = run(text, '-cpb', '--classify')
+assert '[unknown]' not in classified
+assert ''.join(row[13:] for row in classified.splitlines(keepends=True)) == display
+# A generated block summary has mixed contents: label it, retaining it under
+# every --show selection rather than guessing the success of its operation.
+blocks = ''.join(f'Start task {name}\nWriting result for {name}\nDone task {name}\n'
+                 for name in ['alpha', 'beta'])
+for flags in [(), ('--show=result',), ('--show=summary',)]:
+    assert '[summary]    [repeat] beta (3 similar lines)\n' in run(
+        blocks, '-b', '--classify', *flags)
+
 # Independent Python training predictions must match C inference after export.
 report = json.loads(Path(reference_path).with_name('report.json').read_text())
 data_path = Path(__file__).resolve().parents[1] / 'training/log_categories.tsv'

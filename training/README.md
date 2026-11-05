@@ -66,11 +66,18 @@ Jednoliterowe `b` nie stanowi samodzielnej cechy, aby jednostka B nie
 zmieniała kategorii pliku `b.o`; jednostkę wykrywa cecha strukturalna rozmiaru.
 W danych są także negatywne przykłady postępu z procentem i pobierania z
 rozmiarem, aby te same liczby nie wystarczały do przypisania statystyk.
+Wiersze tabel pamięci `nazwa | 840B | 28B` i `TOTAL | 1kB | 69kB`
+rozpoznaje dodatkowo reguła w C: po nazwie muszą wystąpić co najmniej dwie
+kolumny zawierające wyłącznie rozmiary z jednostkami. Rozpoznawane są także
+nagłówki raportów RAM/ROM i podsumowania pojemności. Inne tabele pozostają
+`unknown`; te reguły nie zmieniają wag ani wyników samej sieci.
 
 `formatting` jest dodatkową kategorią regułową w C, poza wyjściami sieci.
 Model i jego referencyjne wyniki nadal opisują tylko kategorie trenowane.
 Czyste separatory `====`, `----`, `****` rozpoznaje reguła przed wnioskowaniem;
 nie zmieniamy z tego powodu wag ani wyników walidacji sieci.
+Puste linie i obramowania tabel, np. `-----+-----+-----`, również są
+`formatting`; podlegają wyborowi `--show` tak jak pozostałe dekoracje.
 
 `listing` jest kategorią regułową w C dla długich listingów plików, poza
 wyjściami sieci. Rozpoznaje strukturę uprawnień i kolejnych pól, a nie
@@ -87,3 +94,14 @@ nie jest to wynik samej sieci uwzględniony w macierzy walidacji modelu.
 nagłówki kontekstu kompilatora i fragmenty źródła z gutterem lub podkreśleniem.
 Level 3 zawsze je zachowuje, również gdy `--show` nie wymienia diagnostic,
 żeby zmiana kategorii z unknown nie usuwała wcześniej zachowywanego kontekstu.
+
+Reguły typowych komunikatów builda uzupełniają niepewne wyniki modelu:
+czynności takie jak Creating/Embedding/Unpacking, zakończone instalacje
+pakietów, zapis raportów i parametry pakowania. Samodzielne ścieżki plików
+oraz nagłówki listingów rozpoznawane są strukturalnie. Testowe przykłady
+z rzeczywistego builda są w `tests/fixtures/build_categories.tsv`;
+nie są używane do treningu ani pomiaru jakości samej sieci.
+
+`summary` oznacza syntetyczne podsumowania bloków z levelu 2. Nie jest
+wyjściem sieci. Pozostaje widoczne przy każdym wyborze `--show`, ponieważ
+blok może zawierać różne rodzaje informacji i nie oznacza sukcesu operacji.
