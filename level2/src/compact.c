@@ -122,7 +122,7 @@ const char *compact_process(CompactState *cs, const char *line) {
     // Different from previous
     if (cs->similar_pending > 0) {
         // Output summary line for hidden similar lines, then the new line
-        // Format: [-> Nx similar: <example>] where example is truncated last_shown
+        // Format: [-> Nx similar: <example>] where N includes the shown example
         char example[96];
         size_t llen = strlen(cs->last_shown);
         if (llen > 80) {
@@ -130,9 +130,10 @@ const char *compact_process(CompactState *cs, const char *line) {
         } else {
             snprintf(example, sizeof(example), "%s", cs->last_shown);
         }
+        int total = cs->similar_pending + 1;  // +1 for the shown example
         snprintf(compact_output, sizeof(compact_output),
                  "  \033[90m[-> %dx similar: %s]\033[0m\n%s",
-                 cs->similar_pending, example, line);
+                 total, example, line);
         cs->total_lines_out += 2;
         cs->groups_detected++;
     } else {
@@ -151,7 +152,7 @@ const char *compact_process(CompactState *cs, const char *line) {
 
 void compact_flush(CompactState *cs) {
     if (!cs) return;
-    if (cs->similar_pending > 0) {
+    if (cs->similar_pending > 0 && cs->last_shown) {
         char example[96];
         size_t llen = strlen(cs->last_shown);
         if (llen > 80) {
@@ -159,7 +160,8 @@ void compact_flush(CompactState *cs) {
         } else {
             snprintf(example, sizeof(example), "%s", cs->last_shown);
         }
-        printf("  \033[90m[-> %dx similar: %s]\033[0m\n", cs->similar_pending, example);
+        int total = cs->similar_pending + 1;
+        printf("  \033[90m[-> %dx similar: %s]\033[0m\n", total, example);
         cs->total_lines_out++;
     }
     cs->similar_pending = 0;
