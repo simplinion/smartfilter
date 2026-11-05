@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "base/base.h"
+#include "level0/level0.h"
 #include "level1/level1.h"
 #include "level2/level2.h"
 
@@ -17,6 +18,8 @@ static bool write_line(void *context, sf_line line)
 int main(int argc, char **argv)
 {
     setlocale(LC_CTYPE, "");
+    level0_context prefilter = {0};
+    level0_config prefilter_config = {0};
     level1_context context = {0};
     level2_context blocks = {0};
     level2_config block_config = {.minimum_lines = 3, .maximum_bytes = 1024 * 1024};
@@ -24,8 +27,16 @@ int main(int argc, char **argv)
         .compaction = {.minimum_prefix = 4},
     };
     int option;
-    while ((option = getopt(argc, argv, "dcpPub")) != -1) {
-        if (option == 'd')
+    while ((option = getopt(argc, argv, "dcpPubview")) != -1) {
+        if (option == 'v')
+            prefilter_config.hide_verbose = true;
+        else if (option == 'i')
+            prefilter_config.hide_info = true;
+        else if (option == 'e')
+            prefilter_config.hide_error = true;
+        else if (option == 'w')
+            prefilter_config.hide_warning = true;
+        else if (option == 'd')
             config.deduplicate = true;
         else if (option == 'P') {
             config.abbreviate_paths = true;
@@ -40,12 +51,12 @@ int main(int argc, char **argv)
         else if (option == 'c')
             config.compaction.compact = true;
         else {
-            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b] [-v] [-i] [-e] [-w]\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
     if (optind != argc) {
-        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b] [-v] [-i] [-e] [-w]\n", argv[0]);
         return EXIT_FAILURE;
     }
     if (!level1_init(&context, &config)) {
@@ -54,6 +65,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     const sf_level levels[] = {
+        level0_create(&prefilter, &prefilter_config),
         level1_create(&context, &config),
         level2_create(&blocks, &block_config),
     };

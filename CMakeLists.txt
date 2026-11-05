@@ -15,7 +15,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_library(smartfilter_base base/base.c)
 target_include_directories(smartfilter_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(smartfilter main.c level1/level1.c level1/compact.c level1/paths.c level2/level2.c)
+add_executable(smartfilter main.c level0/level0.c level1/level1.c level1/compact.c level1/paths.c level2/level2.c)
 target_link_libraries(smartfilter PRIVATE smartfilter_base)
 target_compile_definitions(smartfilter PRIVATE _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700)
 
@@ -28,6 +28,9 @@ if(BUILD_TESTING)
     add_test(NAME pipeline COMMAND pipeline_test)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME severity COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/severity_test.py
+            $<TARGET_FILE:smartfilter>)
         add_test(NAME blocks COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/blocks_test.py
             $<TARGET_FILE:smartfilter>)

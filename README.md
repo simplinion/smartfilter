@@ -21,6 +21,7 @@ CMake zachowuje wcześniej zapisany prefiks; aby go zmienić, użyj
 `main.c` czyta stdin po jednej linii i przekazuje ją przez zarejestrowane
 poziomy, w kolejności tablicy `levels`. Domyślnie output pozostaje bez zmian.
 
+- `level0/` — wstępne odrzucanie linii według typu logu.
 - `base/base.h` — typ linii, callbacki i interfejs pipeline.
 - `base/base.c` — przekazywanie linii między poziomami i do końcowego outputu.
 - `level1/` — przykładowy poziom z osobnym kontekstem i konfiguracją;
@@ -53,6 +54,35 @@ ważne tylko podczas callbacku; buforujący poziom musi kopiować dane.
 Poziomy przekazują dane przez `sf_emit`, a nie przez bezpośredni zapis do
 stdout. Błąd końcowego zapisu zatrzymuje pipeline i jest propagowany jako
 `false` z `sf_emit` oraz funkcji pipeline.
+
+Wstępne filtrowanie typów działa w poziomie 0, przed deduplikacją,
+wykrywaniem ścieżek i analizą bloków. Każda flaga wyłącza jeden typ:
+
+| Flaga | Odrzucany typ |
+| --- | --- |
+| `-v` | verbose (`VERBOSE`) |
+| `-i` | info (`INFO`) |
+| `-e` | error (`ERROR`, `ERR`) |
+| `-w` | warning (`WARNING`, `WARN`) |
+
+```sh
+some-command | smartfilter -vi
+cmake --build . 2>&1 | smartfilter -iwcpub
+```
+
+Rozpoznawane są jawne oznaczenia typu `[INFO]`, `[warn]`, `ERROR:` lub
+`verbose:`; wielkość liter nie ma znaczenia. Oznaczenia mogą występować
+po znaczniku czasu, a `warning:`/`error:` także po lokalizacji kompilatora,
+np. `main.c:12:3: warning: ...`. Kody kolorów ANSI są ignorowane podczas
+klasyfikacji, również wewnątrz oznaczenia; zachowane linie pozostają bajtowo
+bez zmian. Pierwszy rozpoznany typ w linii rozstrzyga: `[INFO] ... error:`
+to nadal info. Samo słowo `error` w treści nie wystarcza bez oznaczenia.
+
+Bez tych flag nic nie jest odrzucane. Linie bez rozpoznanego typu, w tym
+kontynuacje komunikatów wieloliniowych, są przepuszczane; typ nie jest
+dziedziczony z poprzedniej linii. `DEBUG` i `TRACE` nie są utożsamiane
+z `VERBOSE`. Filtr analizuje stdin; `2>&1` w przykładzie włącza do niego
+również stderr komendy. Wszystkie cztery flagi można łączyć z pozostałymi.
 
 Deduplikację w pierwszym poziomie włącza opcja `-d`:
 
