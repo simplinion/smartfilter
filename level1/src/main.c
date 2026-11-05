@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/stat.h>
 
 static void print_usage(const char *prog) {
     fprintf(stderr, "SmartFilter Level 1 - Regex-based line filter\n");
@@ -112,6 +113,12 @@ int main(int argc, char *argv[]) {
                 print_usage(argv[0]);
                 return opt == 'h' ? 0 : 1;
         }
+    }
+    
+    // If no arguments, show usage
+    if (argc == 1) {
+        print_usage(argv[0]);
+        return 0;
     }
     
     // Initialize classifier
