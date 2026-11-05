@@ -31,6 +31,9 @@ if(BUILD_TESTING)
         add_test(NAME compaction COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/compact_test.py
             $<TARGET_FILE:smartfilter>)
+        add_test(NAME urls COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/urls_test.py
+            $<TARGET_FILE:smartfilter>)
         add_test(NAME paths COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/paths_test.py
             $<TARGET_FILE:smartfilter>)

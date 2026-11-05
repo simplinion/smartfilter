@@ -9,6 +9,7 @@ typedef struct {
     bool drop_empty_lines;
     bool deduplicate;
     bool abbreviate_paths;
+    bool abbreviate_urls;
     bool print_paths;
     compact_config compaction;
 } level1_config;

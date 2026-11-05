@@ -140,7 +140,7 @@ static void assign_name(paths_context *state, path_entry *entry)
  * win ties; candidate names (including collision suffixes) reserve nothing
  * until selected and actually used. */
 static path_entry *shortest(paths_context *state, const char *data, size_t length,
-                            size_t original_length)
+                            size_t original_length, bool url)
 {
     path_entry *best = NULL;
     size_t savings = 0;
@@ -148,10 +148,11 @@ static path_entry *shortest(paths_context *state, const char *data, size_t lengt
     for (int existing = 1; existing >= 0; --existing) {
         for (size_t i = 0; i < state->count; ++i) {
             path_entry *entry = &state->entries[i];
-            if (entry->used != (existing != 0) || entry->occurrences < 2 ||
+            if (entry->url != url || entry->used != (existing != 0) || entry->occurrences < 2 ||
                 entry->length <= 1 || entry->length > length ||
                 memcmp(entry->value, data, entry->length) != 0 ||
-                (entry->length != length && data[entry->length] != '/'))
+                (entry->length != length && data[entry->length] != '/' &&
+                 !(url && (data[entry->length] == '?' || data[entry->length] == '#'))))
                 continue;
             path_entry proposal = *entry;
             if (!entry->used) {
@@ -240,7 +241,50 @@ static bool candidate(const char *data, size_t length)
     return slash && (data[0] == '/' || !only_numbers);
 }
 
-bool paths_transform(paths_context *state, sf_line input, sf_line *result)
+/* HTTP(S) tokens are opaque: no decoding, case folding, or path normalization.
+ * In particular query strings, fragments, ports, and IPv6 literals survive. */
+static size_t url_scheme(const char *data, size_t length)
+{
+    if (length >= 7 && memcmp(data, "http://", 7) == 0)
+        return 7;
+    if (length >= 8 && memcmp(data, "https://", 8) == 0)
+        return 8;
+    return 0;
+}
+
+static bool observe_url(paths_context *state, const char *data, size_t length,
+                        size_t scheme)
+{
+    size_t end = scheme;
+    while (end < length && data[end] != '/' && data[end] != '?' && data[end] != '#')
+        ++end;
+    if (end == scheme)
+        return true;
+    for (size_t prefix = end; prefix <= length; ++prefix) {
+        if (prefix != end && (prefix == length || data[prefix] == '?' || data[prefix] == '#'))
+            break;
+        if (prefix != end && data[prefix] != '/')
+            continue;
+        size_t index = 0;
+        while (index < state->count &&
+               (!state->entries[index].url || state->entries[index].length != prefix ||
+                memcmp(state->entries[index].value, data, prefix) != 0))
+            ++index;
+        if (index == state->count) {
+            if (!add(state, data, prefix))
+                return false;
+            state->entries[index].url = true;
+        }
+        if (state->entries[index].occurrences < 2)
+            ++state->entries[index].occurrences;
+        if (prefix == length || data[prefix] == '?' || data[prefix] == '#')
+            break;
+    }
+    return true;
+}
+
+bool paths_transform(paths_context *state, sf_line input, sf_line *result,
+                     bool abbreviate_paths, bool abbreviate_urls)
 {
     state->rendered_length = 0;
     bool changed = false;
@@ -259,6 +303,37 @@ bool paths_transform(paths_context *state, sf_line input, sf_line *result)
             if (!append(state, input.data + i, end - i))
                 return false;
             i = end;
+            continue;
+        }
+        size_t scheme = boundary ? url_scheme(input.data + i, input.length - i) : 0;
+        if (scheme) {
+            char quote = i && (input.data[i - 1] == '\'' || input.data[i - 1] == '"')
+                         ? input.data[i - 1] : 0;
+            size_t end = i + scheme;
+            while (end < input.length && (unsigned char)input.data[end] > ' ' &&
+                   (quote ? input.data[end] != quote :
+                    strchr("\"'<>(){},", input.data[end]) == NULL))
+                ++end;
+            while (!quote && end > i + scheme &&
+                   (input.data[end - 1] == '.' || input.data[end - 1] == ';'))
+                --end;
+            size_t length = end - i;
+            path_entry *entry = NULL;
+            if (abbreviate_urls) {
+                if (!observe_url(state, input.data + i, length, scheme))
+                    return false;
+                entry = shortest(state, input.data + i, length, length, true);
+            }
+            if (entry) {
+                if (!append(state, entry->name, strlen(entry->name)) ||
+                    !append(state, input.data + i + entry->length, length - entry->length))
+                    return false;
+                changed = state->used = entry->used = true;
+            } else if (!append(state, input.data + i, length)) {
+                return false;
+            }
+            i = end;
+            boundary = false;
             continue;
         }
         if (delimiter((unsigned char)input.data[i])) {
@@ -286,7 +361,7 @@ bool paths_transform(paths_context *state, sf_line input, sf_line *result)
         size_t length = end - i;
         path_entry *entry = NULL;
         char *resolved = NULL;
-        if (boundary && candidate(input.data + i, length)) {
+        if (abbreviate_paths && boundary && candidate(input.data + i, length)) {
             resolved = resolve(state, input.data + i, length);
             if (!resolved)
                 return false;
@@ -295,7 +370,7 @@ bool paths_transform(paths_context *state, sf_line input, sf_line *result)
                 free(resolved);
                 return false;
             }
-            entry = shortest(state, resolved, resolved_length, length);
+            entry = shortest(state, resolved, resolved_length, length, false);
             if (entry) {
                 bool ok = append(state, entry->name, strlen(entry->name)) &&
                           append(state, resolved + entry->length, resolved_length - entry->length);
@@ -351,7 +426,8 @@ void paths_finish(paths_context *state, sf_output *output)
         for (size_t j = 0; j < i; ++j) {
             const path_entry *candidate = definitions[j];
             size_t name_length = strlen(candidate->name);
-            if (candidate->length < entry->length && name_length < candidate->length &&
+            if (candidate->url == entry->url && candidate->length < entry->length &&
+                name_length < candidate->length &&
                 candidate->length - name_length > savings &&
                 entry->value[candidate->length] == '/' &&
                 memcmp(candidate->value, entry->value, candidate->length) == 0) {

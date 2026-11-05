@@ -9,6 +9,7 @@ typedef struct {
     char name[128];
     size_t occurrences;
     bool used;
+    bool url;
 } path_entry;
 
 typedef struct {
@@ -22,7 +23,8 @@ typedef struct {
 } paths_context;
 
 bool paths_init(paths_context *context);
-bool paths_transform(paths_context *context, sf_line input, sf_line *result);
+bool paths_transform(paths_context *context, sf_line input, sf_line *result,
+                     bool abbreviate_paths, bool abbreviate_urls);
 void paths_finish(paths_context *context, sf_output *output);
 void paths_destroy(paths_context *context);
 

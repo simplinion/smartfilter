@@ -42,7 +42,7 @@ static bool grow(level1_context *state)
 
 bool level1_init(level1_context *context, const level1_config *config)
 {
-    return !config->abbreviate_paths || paths_init(&context->paths);
+    return !(config->abbreviate_paths || config->abbreviate_urls) || paths_init(&context->paths);
 }
 
 void level1_destroy(level1_context *context)
@@ -97,7 +97,9 @@ static bool filter(void *context, const void *config, sf_line line,
         ++state->count;
     }
     sf_line transformed = line;
-    if (options->abbreviate_paths && !paths_transform(&state->paths, line, &transformed)) {
+    if ((options->abbreviate_paths || options->abbreviate_urls) &&
+        !paths_transform(&state->paths, line, &transformed,
+                         options->abbreviate_paths, options->abbreviate_urls)) {
         state->allocation_failed = true;
         sf_output_fail(output);
         return false;
@@ -115,7 +117,7 @@ static void finish(void *context, const void *config, sf_output *output)
 {
     level1_context *state = context;
     const level1_config *options = config;
-    if (options->abbreviate_paths && options->print_paths)
+    if (options->print_paths)
         paths_finish(&state->paths, output);
 }
 

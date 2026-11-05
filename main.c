@@ -21,24 +21,26 @@ int main(int argc, char **argv)
         .compaction = {.minimum_prefix = 4},
     };
     int option;
-    while ((option = getopt(argc, argv, "dcpP")) != -1) {
+    while ((option = getopt(argc, argv, "dcpPu")) != -1) {
         if (option == 'd')
             config.deduplicate = true;
         else if (option == 'P') {
             config.abbreviate_paths = true;
             config.print_paths = true;
         }
+        else if (option == 'u')
+            config.abbreviate_urls = true;
         else if (option == 'p')
             config.abbreviate_paths = true;
         else if (option == 'c')
             config.compaction.compact = true;
         else {
-            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u]\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
     if (optind != argc) {
-        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u]\n", argv[0]);
         return EXIT_FAILURE;
     }
     if (!level1_init(&context, &config)) {

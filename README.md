@@ -163,7 +163,8 @@ jest dokładny oryginalny tekst. Ścieżki ze spacjami powinny być ujęte
 w pojedyncze lub podwójne cudzysłowy. Same nazwy plików bez ukośnika
 nie są interpretowane jako ścieżki.
 
-Adresy URL, opcje zaczynające się od `-`, ułamki typu `1/10`, daty złożone
+Bez `-u` adresy URL pozostają bez zmian. Opcje zaczynające się od `-`,
+ułamki typu `1/10`, daty złożone
 z cyfr i ukośników oraz wyrażenia z `$`, `~` lub wildcardami pozostają
 bez zmian. Wykrywanie względnych ścieżek jest heurystyką: słowo z ukośnikiem
 może być uznane za ścieżkę również wtedy, gdy nie oznacza pliku.
@@ -206,3 +207,36 @@ omijają kompaktowanie prefiksów. Nazwy są skrótami w logu; filtr nie ustawia
 zmiennych środowiskowych w powłoce wywołującej: proces uruchomiony w pipe
 nie może zmienić środowiska swojego rodzica. Do sprawdzenia mapowania służy
 `-P`. Bez żadnej podmiany sekcja słownika nie jest dopisywana.
+
+Skracanie URL-i HTTP i HTTPS włącza osobna opcja `-u`:
+
+```sh
+some-command | smartfilter -u      # tylko podmiana URL-i
+some-command | smartfilter -dcpu   # pliki, URL-e, deduplikacja i kompaktowanie
+some-command | smartfilter -dcuP   # dodatkowo słownik na końcu
+```
+
+Tak jak dla plików pierwsze wystąpienie jest pełne, kolejne mogą korzystać
+z powtarzającego się prefiksu na granicy segmentu. Nazwa pochodzi z ostatniego
+segmentu lub z hosta, jeśli wspólny jest tylko serwer:
+
+```text
+https://example.com/packages/a.tar.gz
+$packages/b.tar.gz
+
+[paths]
+$packages = https://example.com/packages
+```
+
+Sekcja `[paths]` zawiera również definicje URL-i, ale pojawia się tylko
+z `-P`. Definicje mogą odwoływać się do wcześniej wypisanego aliasu serwera
+lub nadrzędnej części URL-a. Nazwy URL-i i plików są wspólne, z sufiksami
+przy konflikcie. Podmiana nadal musi dawać krótszy zapis; `-p` samo nie
+włącza skracania URL-i, a `-u` samo nie włącza skracania plików.
+
+Schemat, host i port muszą pasować dokładnie. Query string i fragment nie
+uczestniczą w wykrywaniu wspólnych katalogów i są zachowywane w wyjściu,
+podobnie jak kodowanie procentowe. URL-e nie są normalizowane przez reguły
+plików (`..` i wielkość liter pozostają bez zmian). Obsługiwane są też porty,
+adresy IPv6 oraz kolory ANSI wokół adresu. W nieujętych w cudzysłowy logach
+nawiasy i przecinki traktowane są jako separatory tekstu.
