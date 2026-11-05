@@ -27,11 +27,12 @@ static PatternDef patterns[] = {
     {"WARN2",      "^.*\\[Ww\\].*$",                            LINE_WARNING, 65,  75},
     {"DEPRECATED", "^.*[Dd]eprecated.*$",                       LINE_WARNING, 60,  70},
     
-    // Success indicators
+    // Success indicators - use word boundaries
     {"OK",         "^.*\\[OK\\].*$",                            LINE_SUCCESS, 50,  70},
-    {"DONE",       "^.*[Dd]one\\.?\\s*$",                       LINE_SUCCESS, 50,  60},
-    {"PASSED",     "^.*[Pp]assed\\s*$",                         LINE_SUCCESS, 55,  65},
-    {"SUCCESS",    "^.*[Ss]uccess(ful)?.*$",                    LINE_SUCCESS, 50,  60},
+    {"DONE",       "^.*\\b[Dd]one\\b.*$",                       LINE_SUCCESS, 50,  60},
+    {"PASSED",     "^.*\\b[Pp]assed\\b.*$",                     LINE_SUCCESS, 55,  65},
+    {"SUCCESS",    "^.*\\b[Ss]uccess(ful)?\\b.*$",              LINE_SUCCESS, 50,  60},
+    {"TEST_OK",    "^.*test\\s+\\S+\\s+ok$",                    LINE_SUCCESS, 45,  50},
     
     // Progress bars - typically noise
     {"PROGRESS",   "^.*\\[[#= ]+\\].*\\d+%.*$",                 LINE_PROGRESS, 20, 50},

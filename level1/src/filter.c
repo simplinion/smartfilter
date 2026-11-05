@@ -195,9 +195,11 @@ static bool should_show_line(Filter *f, LineType type, int score) {
     // Mode-based filtering
     switch (f->config.mode) {
         case MODE_AGGRESSIVE:
-            // Show only errors, warnings, success
-            return type == LINE_WARNING || type == LINE_SUCCESS || 
-                   type == LINE_UNKNOWN || score >= 60;
+            // Show only errors, warnings, success, and high-score lines
+            return type == LINE_ERROR || 
+                   type == LINE_WARNING || 
+                   type == LINE_SUCCESS || 
+                   score >= 70;
             
         case MODE_PERMISSIVE:
             // Show everything except obvious noise
