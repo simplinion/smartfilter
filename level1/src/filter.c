@@ -18,13 +18,38 @@ static const FilterConfig default_config = {
     .custom_bl         = NULL,
 };
 
-// Static buffers and state for collapse tracking
+// Static buffers
 static char collapse_pending_line[512] = {0};
-static int collapse_pending_count = 0;
-static int collapse_threshold = 3;
-
-// Static buffer for processed output
+static int collapse_pending_count = 0;  // total count in current sequence
+static int collapse_pending_shown = 0;  // how many we've shown
 static char output_buf[1024];
+
+// Forward flush of collapsed sequence (called when new DIFFERENT line arrives)
+// Returns summary string in output_buf, or empty string if no pending
+static const char *collapse_flush_sequence(Filter *f) {
+    output_buf[0] = '\0';
+    
+    if (collapse_pending_line[0] == '\0' || collapse_pending_count <= 0) {
+        return output_buf;
+    }
+    
+    // Always output summary if we hit threshold (shows count)
+    if (collapse_pending_count >= f->config.collapse_threshold) {
+        snprintf(output_buf, sizeof(output_buf), 
+                 "  \033[90m[%dx: %.40s%s]\033[0m", 
+                 collapse_pending_count, 
+                 collapse_pending_line,
+                 strlen(collapse_pending_line) > 40 ? "..." : "");
+        // Summary counts as 1 output line
+        f->total_out++;
+    }
+    
+    collapse_pending_line[0] = '\0';
+    collapse_pending_count = 0;
+    collapse_pending_shown = 0;
+    
+    return output_buf;
+}
 
 Filter *filter_create(void) {
     Filter *f = calloc(1, sizeof(Filter));
@@ -34,9 +59,9 @@ Filter *filter_create(void) {
     f->ctx = ctx_create(32);
     f->collapse = collapse_create();
     
-    collapse_threshold = f->config.collapse_threshold;
     collapse_pending_line[0] = '\0';
     collapse_pending_count = 0;
+    collapse_pending_shown = 0;
     
     if (!f->ctx || !f->collapse) {
         if (f->ctx) ctx_destroy(f->ctx);
@@ -66,18 +91,10 @@ void filter_destroy(Filter *f) {
     if (!f) return;
     
     // Flush any pending collapse at end
-    if (collapse_pending_line[0] != '\0' && collapse_pending_count > 0) {
-        if (collapse_pending_count >= f->config.collapse_threshold) {
-            char summary_buf[128];
-            snprintf(summary_buf, sizeof(summary_buf), 
-                     "  \033[90m[%dx: %.40s%s]\033[0m\n", 
-                     collapse_pending_count, 
-                     collapse_pending_line,
-                     strlen(collapse_pending_line) > 40 ? "..." : "");
-            fwrite(summary_buf, 1, strlen(summary_buf), stdout);
-        }
-        collapse_pending_line[0] = '\0';
-        collapse_pending_count = 0;
+    const char *summary = collapse_flush_sequence(f);
+    if (summary[0] != '\0') {
+        fwrite(summary, 1, strlen(summary), stdout);
+        fputc('\n', stdout);
     }
     
     ctx_destroy(f->ctx);
@@ -107,7 +124,6 @@ static int apply_config_cmd(Filter *f, const ProtocolCmd *cmd) {
             
         case CMD_SKIP_REPEAT:
             f->config.collapse_threshold = cmd->arg_int;
-            collapse_threshold = cmd->arg_int;
             break;
             
         case CMD_COLLAPSE_REPEAT:
@@ -128,7 +144,6 @@ static int apply_config_cmd(Filter *f, const ProtocolCmd *cmd) {
             break;
             
         case CMD_CTX_WINDOW:
-            // Recreate context with new size
             ctx_destroy(f->ctx);
             f->ctx = ctx_create(cmd->arg_int);
             break;
@@ -180,6 +195,7 @@ void filter_reset(Filter *f) {
     f->stream_pass_remaining = 0;
     collapse_pending_line[0] = '\0';
     collapse_pending_count = 0;
+    collapse_pending_shown = 0;
 }
 
 static bool should_show_line(Filter *f, LineType type, int score) {
@@ -195,11 +211,9 @@ static bool should_show_line(Filter *f, LineType type, int score) {
     // Mode-based filtering
     switch (f->config.mode) {
         case MODE_AGGRESSIVE:
-            // Show only errors, warnings, success, and high-score lines
-            return type == LINE_ERROR || 
-                   type == LINE_WARNING || 
-                   type == LINE_SUCCESS || 
-                   score >= 70;
+            // Aggressive = collapse duplicates, but show everything unique
+            // (unless it's explicit noise with score < 10)
+            return type != LINE_NOISE || score >= 10;
             
         case MODE_PERMISSIVE:
             // Show everything except obvious noise
@@ -250,55 +264,77 @@ const char *filter_process_ex(Filter *f, const char *line, bool *out_shown) {
     LineType type = c.type;
     int score = c.score;
     
-    // Check if this line matches the pending collapse
-    if (f->config.collapse_enabled && 
-        type != LINE_ERROR && 
-        type != LINE_WARNING &&
-        collapse_pending_line[0] != '\0' &&
-        strcmp(line, collapse_pending_line) == 0) {
+    // Check if should show (before collapse logic)
+    bool shown = should_show_line(f, type, score);
+    
+    // Update context
+    ctx_add(f->ctx, line, type, score);
+    
+    // Errors and warnings are never collapsed - flush any pending and show immediately
+    if (type == LINE_ERROR || type == LINE_WARNING) {
+        // Flush any pending collapse sequence first
+        const char *summary = collapse_flush_sequence(f);
+        if (summary[0] != '\0') {
+            fwrite(summary, 1, strlen(summary), stdout);
+            fputc('\n', stdout);
+        }
         
-        // Same line again - increment and hide
-        collapse_pending_count++;
-        f->skipped++;
+        // Show the error/warning
+        f->total_out++;
+        truncate_line(line, output_buf, f->config.max_line_len, true);
+        if (out_shown) *out_shown = true;
+        return output_buf;
+    }
+    
+    // Collapse logic - only for non-error/warning lines
+    if (f->config.collapse_enabled && shown) {
         
-        // If we've hit threshold, output summary and keep hiding
-        if (collapse_pending_count >= f->config.collapse_threshold) {
+        // Check if this matches current pending sequence
+        if (collapse_pending_line[0] != '\0' && 
+            strcmp(line, collapse_pending_line) == 0) {
+            
+            // Same line - increment count
+            collapse_pending_count++;
+            
+            // If we haven't shown threshold yet, keep showing
+            if (collapse_pending_shown < f->config.collapse_threshold) {
+                collapse_pending_shown++;
+                f->total_out++;
+                if (out_shown) *out_shown = true;
+                return line;
+            }
+            
+            // We've shown threshold, now hide the rest
+            f->skipped++;
             if (out_shown) *out_shown = false;
             return "";
         }
         
-        // First few repetitions - show them
-        f->total_out++;
-        if (out_shown) *out_shown = true;
-        return line;
-    }
-    
-    // New line - flush any pending collapse first
-    if (collapse_pending_line[0] != '\0' && collapse_pending_count > 0) {
-        // We had a collapsed sequence - output summary if there were enough
+        // New/different line - flush previous collapse sequence if any
+        // Show summary if we had more than threshold (some were hidden)
         if (collapse_pending_count >= f->config.collapse_threshold) {
-            // Print summary directly (not to output_buf, which is for current line)
-            char summary_buf[128];
-            snprintf(summary_buf, sizeof(summary_buf), 
-                     "  \033[90m[%dx: %.40s%s]\033[0m\n", 
-                     collapse_pending_count, 
-                     collapse_pending_line,
-                     strlen(collapse_pending_line) > 40 ? "..." : "");
-            fwrite(summary_buf, 1, strlen(summary_buf), stdout);
-            f->total_out++;
+            const char *summary = collapse_flush_sequence(f);
+            if (summary[0] != '\0') {
+                fwrite(summary, 1, strlen(summary), stdout);
+                fputc('\n', stdout);
+            }
+        } else {
+            // Clear pending without summary (not enough to collapse)
+            collapse_pending_line[0] = '\0';
+            collapse_pending_count = 0;
+            collapse_pending_shown = 0;
         }
-        // Clear pending and continue to process current line
-        collapse_pending_line[0] = '\0';
-        collapse_pending_count = 0;
+        
+        // Start new sequence - show first occurrence
+        
+        // Start new sequence - show first occurrence
+        strncpy(collapse_pending_line, line, sizeof(collapse_pending_line) - 1);
+        collapse_pending_line[sizeof(collapse_pending_line) - 1] = '\0';
+        collapse_pending_count = 1;
+        collapse_pending_shown = 1;
     }
     
-    // Update context (after flush check)
-    ctx_add(f->ctx, line, type, score);
-    
-    // Check if should show
-    bool shown = should_show_line(f, type, score);
-    
-    // Check custom patterns
+    // Check custom patterns (only if line wasn't already hidden by collapse)
     if (shown && f->config.custom_bl) {
         regex_t re;
         if (regcomp(&re, f->config.custom_bl, REG_EXTENDED) == 0) {
@@ -325,16 +361,6 @@ const char *filter_process_ex(Filter *f, const char *line, bool *out_shown) {
     if (shown) {
         f->total_out++;
         truncate_line(line, output_buf, f->config.max_line_len, type == LINE_ERROR);
-        
-        // Start tracking for collapse if this is collapseable type
-        if (f->config.collapse_enabled && 
-            type != LINE_ERROR && 
-            type != LINE_WARNING &&
-            type != LINE_NOISE) {
-            strncpy(collapse_pending_line, line, sizeof(collapse_pending_line) - 1);
-            collapse_pending_line[sizeof(collapse_pending_line) - 1] = '\0';
-            collapse_pending_count = 0;  // This is first occurrence
-        }
     } else {
         f->skipped++;
     }
@@ -361,19 +387,11 @@ void filter_set_config(Filter *f, const FilterConfig *cfg) {
 void filter_print_summary(const Filter *f) {
     if (!f) return;
     
-    // Flush any pending collapse first
-    if (collapse_pending_line[0] != '\0' && collapse_pending_count > 0) {
-        if (collapse_pending_count >= collapse_threshold) {
-            char summary_buf[128];
-            snprintf(summary_buf, sizeof(summary_buf), 
-                     "  \033[90m[%dx: %.40s%s]\033[0m", 
-                     collapse_pending_count, 
-                     collapse_pending_line,
-                     strlen(collapse_pending_line) > 40 ? "..." : "");
-            fprintf(stderr, "%s\n", summary_buf);
-        }
-        collapse_pending_line[0] = '\0';
-        collapse_pending_count = 0;
+    // Flush any pending collapse first (to stdout, before summary)
+    const char *summary = collapse_flush_sequence((Filter*)f);
+    if (summary[0] != '\0') {
+        fwrite(summary, 1, strlen(summary), stdout);
+        fputc('\n', stdout);
     }
     
     fprintf(stderr, "\n\033[1mSmartFilter Summary\033[0m\n");
