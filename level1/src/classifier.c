@@ -20,7 +20,7 @@ static PatternDef patterns[] = {
     {"ERROR",      "^.*[Ee]rror(\\s*\\[|\\s*:|\\s+-).*$",       LINE_ERROR,   95,  95},
     {"FATAL",      "^.*[Ff]atal(\\s+error|:\\s+).*$",           LINE_ERROR,   95,  95},
     {"EXCEPTION",  "^.*[Ee]xception.*$",                        LINE_ERROR,   90,  90},
-    {"FAILED",     "^.*[Ff]ailed:\\s*.*$",                      LINE_ERROR,   85,  85},
+    {"FAILED",     "^.*([Ff]ailed|[Ee]rror):\\s*.*$",           LINE_ERROR,   85,  85},
     
     // Warnings - usually show
     {"WARN",       "^.*[Ww]arning(\\s*\\[|\\s*:|\\s+-).*$",     LINE_WARNING, 70,  80},
