@@ -6,6 +6,7 @@
 #include "classifier.h"
 #include "context.h"
 #include "collapse.h"
+#include "dedup.h"
 #include <stdbool.h>
 
 // Filter configuration
@@ -15,6 +16,8 @@ typedef struct {
     int        max_line_len;    // truncate longer lines
     int        collapse_threshold;
     bool       collapse_enabled;
+    bool       dedup_enabled;   // show each unique line only once
+    int        dedup_max_entries; // max unique lines to remember
     bool       summarize;
     int        stream_pass;     // pass next N lines unfiltered
     
@@ -28,12 +31,14 @@ typedef struct {
     FilterConfig   config;
     Context       *ctx;
     CollapseState *collapse;
+    DedupState    *dedup;
     
     // Runtime stats
     int            total_in;
     int            total_out;
     int            skipped;
     int            collapsed;
+    int            dedup_skipped; // lines skipped by dedup
     
     // State
     int            stream_pass_remaining;

@@ -12,6 +12,8 @@ static const FilterConfig default_config = {
     .max_line_len      = 200,
     .collapse_threshold = 3,
     .collapse_enabled  = true,
+    .dedup_enabled     = false,  // off by default
+    .dedup_max_entries = 5000,
     .summarize         = false,
     .stream_pass       = 0,
     .custom_wl         = NULL,
@@ -58,14 +60,16 @@ Filter *filter_create(void) {
     f->config = default_config;
     f->ctx = ctx_create(32);
     f->collapse = collapse_create();
+    f->dedup = dedup_create(f->config.dedup_max_entries);
     
     collapse_pending_line[0] = '\0';
     collapse_pending_count = 0;
     collapse_pending_shown = 0;
     
-    if (!f->ctx || !f->collapse) {
+    if (!f->ctx || !f->collapse || !f->dedup) {
         if (f->ctx) ctx_destroy(f->ctx);
         if (f->collapse) collapse_destroy(f->collapse);
+        if (f->dedup) dedup_destroy(f->dedup);
         free(f);
         return NULL;
     }
@@ -99,6 +103,7 @@ void filter_destroy(Filter *f) {
     
     ctx_destroy(f->ctx);
     collapse_destroy(f->collapse);
+    dedup_destroy(f->dedup);
     free(f->config.custom_wl);
     free(f->config.custom_bl);
     free(f);
@@ -188,10 +193,12 @@ void filter_reset(Filter *f) {
     f->config = default_config;
     ctx_reset(f->ctx);
     collapse_reset(f->collapse);
+    dedup_reset(f->dedup);
     f->total_in = 0;
     f->total_out = 0;
     f->skipped = 0;
     f->collapsed = 0;
+    f->dedup_skipped = 0;
     f->stream_pass_remaining = 0;
     collapse_pending_line[0] = '\0';
     collapse_pending_count = 0;
@@ -266,6 +273,16 @@ const char *filter_process_ex(Filter *f, const char *line, bool *out_shown) {
     
     // Check if should show (before collapse logic)
     bool shown = should_show_line(f, type, score);
+    
+    // Deduplication check - skip if we've seen this exact line before
+    if (shown && f->config.dedup_enabled) {
+        if (!dedup_check_and_add(f->dedup, line)) {
+            f->skipped++;
+            f->dedup_skipped++;
+            if (out_shown) *out_shown = false;
+            return "";
+        }
+    }
     
     // Update context
     ctx_add(f->ctx, line, type, score);

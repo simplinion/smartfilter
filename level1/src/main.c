@@ -18,12 +18,13 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "  -w, --wl PATTERN      Whitelist pattern (show only matching)\n");
     fprintf(stderr, "  -b, --bl PATTERN      Blacklist pattern (hide matching)\n");
     fprintf(stderr, "  -s, --no-collapse     Disable repetition collapsing\n");
+    fprintf(stderr, "  -d, --dedup           Show each unique line only once\n");
     fprintf(stderr, "  -S, --summarize       Show summary instead of details\n");
     fprintf(stderr, "  -v, --verbose         Show filter stats at end\n");
     fprintf(stderr, "  -h, --help            Show this help\n");
     fprintf(stderr, "\nExamples:\n");
     fprintf(stderr, "  make 2>&1 | %s --mode aggressive\n", prog);
-    fprintf(stderr, "  cargo build 2>&1 | %s -C 'MODE:aggressive;ADD_BL:.*Compiling.*'\n", prog);
+    fprintf(stderr, "  make 2>&1 | %s -d        # deduplicate (show each line once)\n", prog);
     fprintf(stderr, "  cat log.txt | %s -w 'error|warning|failed'\n", prog);
 }
 
@@ -34,6 +35,7 @@ int main(int argc, char *argv[]) {
     int max_line_len = 200;
     int verbose = 0;
     int no_collapse = 0;
+    int dedup = 0;
     int summarize = 0;
     char *wl_pattern = NULL;
     char *bl_pattern = NULL;
@@ -48,6 +50,7 @@ int main(int argc, char *argv[]) {
         {"wl",         required_argument, 0, 'w'},
         {"bl",         required_argument, 0, 'b'},
         {"no-collapse",no_argument,       0, 's'},
+        {"dedup",      no_argument,       0, 'd'},
         {"summarize",  no_argument,       0, 'S'},
         {"verbose",    no_argument,       0, 'v'},
         {"help",       no_argument,       0, 'h'},
@@ -55,7 +58,7 @@ int main(int argc, char *argv[]) {
     };
     
     int opt;
-    while ((opt = getopt_long(argc, argv, "m:l:c:L:C:w:b:sSvhh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "m:l:c:L:C:w:b:sdSvhh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'm':
                 if (strcmp(optarg, "aggressive") == 0) mode = MODE_AGGRESSIVE;
@@ -99,6 +102,10 @@ int main(int argc, char *argv[]) {
                 no_collapse = 1;
                 break;
                 
+            case 'd':
+                dedup = 1;
+                break;
+                
             case 'S':
                 summarize = 1;
                 break;
@@ -138,6 +145,7 @@ int main(int argc, char *argv[]) {
     f->config.collapse_threshold = collapse_threshold;
     f->config.max_line_len = max_line_len;
     f->config.collapse_enabled = !no_collapse;
+    f->config.dedup_enabled = dedup;
     f->config.summarize = summarize;
     
     // Apply custom patterns
