@@ -24,8 +24,8 @@ static void usage(const char *program)
             "  -d deduplicate; -c compact; -p paths; -P print dictionary; -u URLs; -b blocks\n"
             "  --classify   annotate level3 categories without changing line contents\n"
             "  --color      color complete lines by level3 category (ANSI/VT100)\n"
-            "  --show LIST  progress,error,warning,info,result,stats,version,formatting,listing,unknown or all\n"
-            "               uncertain/unknown lines always remain visible\n", program);
+            "  --show LIST  progress,error,warning,info,result,stats,version,formatting,listing,diagnostic,unknown or all\n"
+            "               unknown and diagnostic context always remain visible\n", program);
 }
 
 int main(int argc, char **argv)

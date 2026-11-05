@@ -82,3 +82,8 @@ wersji dla kategorii `version`. Identyfikatory z `_`, np.
 są traktowane jako parametry. Identyczne maskowanie działa w Pythonie i C.
 Przy niepewnym wyniku modelu level 3 może zachować kategorię jawnego INFO;
 nie jest to wynik samej sieci uwzględniony w macierzy walidacji modelu.
+
+`diagnostic` jest kolejną kategorią regułową poza wyjściami sieci. Rozpoznaje
+nagłówki kontekstu kompilatora i fragmenty źródła z gutterem lub podkreśleniem.
+Level 3 zawsze je zachowuje, również gdy `--show` nie wymienia diagnostic,
+żeby zmiana kategorii z unknown nie usuwała wcześniej zachowywanego kontekstu.

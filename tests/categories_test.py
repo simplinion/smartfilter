@@ -26,7 +26,7 @@ assert run(text) == text
 annotated = run(text, '--classify').splitlines()
 assert [x.split(']', 1)[0] + ']' for x in annotated] == [
     '[progress]', '[progress]', '[progress]', '[error]', '[warning]', '[info]',
-    '[unknown]', '[unknown]'], annotated
+    '[diagnostic]', '[diagnostic]'], annotated
 assert run(text, '--show', 'progress,error,warning') == (
     '[INFO] Downloading module: firmware\nBuilding C object firmware.o\n'
     'Linking C executable firmware\n[ERROR] Downloading failed\n'
@@ -125,7 +125,7 @@ color_samples = [
     ('[INFO] Target architecture: armv7\n', '\x1b[0;37m'),
     ('Installed: printf@0.19\n', '\x1b[0;1;32m'),
     ('modules.dmp 174.66 KB 49.4%\n', '\x1b[0;35m'),
-    ('^^^^\n', '\x1b[0;37m'),
+    ('^^^^\n', '\x1b[0;2;37m'),
     ('========\n', '\x1b[0;2;37m'),
 ]
 for sample, color in color_samples:
@@ -208,6 +208,28 @@ for sample in ['Open On-Chip Debugger 0.12.0\n', 'cmake version 3.28.3\n',
     assert run(sample, '--show=progress') == ''
 assert run('Building module firmware version 1.2.3\n', '--classify') != (
     '[version]    Building module firmware version 1.2.3\n')
+# Compiler context has its own category, without hiding the evidence when a
+# caller selects just results, progress, warnings or errors.
+diagnostic = (
+    "$lib/dmosi-freertos/lib/freertos/portable/GCC/ARM_CM7/r0p1/port.c: In function 'xPortStartScheduler':\n"
+    '  315 |         const portISR_t * const pxVectorTable = portSCB_VTOR_REG;\n'
+    '      |                                 ^~~~~~~~~~~~~\n')
+for sample in [*diagnostic.splitlines(keepends=True),
+               'src/main.cpp: In member function \'void A::foo()\':\n',
+               '/src/main.c: At top level:\n',
+               'In file included from /src/header.h:12:\n',
+               '  315 | // warning: this is source text\n',
+               '\x1b[34m      |  ^~~~~\x1b[0m\n']:
+    assert run(sample, '--classify') == '[diagnostic] ' + sample
+    assert run(sample, '--show=diagnostic') == sample
+    assert run(sample, '--show=result,progress') == sample
+for flags in [(), ('-c',), ('-cpb',)]:
+    display = run(diagnostic, *flags)
+    assert run(diagnostic, *flags, '--classify') == ''.join(
+        '[diagnostic] ' + row for row in display.splitlines(keepends=True))
+for sample in ['  File | RAM | ROM\n', '  foo.c | 5B | 5kB\n', 'a | b\n',
+               '====\n', '~~~~\n', '[WARNING] failure | details\n']:
+    assert not run(sample, '--classify').startswith('[diagnostic]')
 # Independent Python training predictions must match C inference after export.
 report = json.loads(Path(reference_path).with_name('report.json').read_text())
 data_path = Path(__file__).resolve().parents[1] / 'training/log_categories.tsv'

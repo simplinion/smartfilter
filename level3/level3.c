@@ -13,7 +13,7 @@ typedef char model_categories_match[(L3_CLASSES == CATEGORY_FORMATTING) ? 1 : -1
 #define WORD_LIMIT 63
 
 static const char *const names[CATEGORY_COUNT] = {
-    "progress", "error", "warning", "info", "result", "stats", "version", "unknown", "formatting", "listing"
+    "progress", "error", "warning", "info", "result", "stats", "version", "unknown", "formatting", "listing", "diagnostic"
 };
 
 const char *level3_category_name(log_category category)
@@ -399,6 +399,42 @@ static bool long_listing(const char *text)
     return next_field(&text).length > 0; /* filename; spaces and -> targets allowed */
 }
 
+static bool diagnostic_context(const char *text)
+{
+    while (*text && whitespace((unsigned char)*text))
+        ++text;
+    const char *cursor = text;
+    while (*cursor >= '0' && *cursor <= '9')
+        ++cursor;
+    bool numbered = cursor != text;
+    while (*cursor == ' ' || *cursor == '\t')
+        ++cursor;
+    if (*cursor == '|' && (numbered || !strchr(cursor + 1, '|')))
+        return true; /* Code gutter, source excerpt, or an underline gutter. */
+    bool caret = false;
+    cursor = text;
+    while (*cursor && (strchr("^~+-", *cursor) || whitespace((unsigned char)*cursor))) {
+        if (*cursor == '^')
+            caret = true;
+        ++cursor;
+    }
+    if (caret && !*cursor)
+        return true;
+    const char *markers[] = {
+        ": In function ", ": In member function ", ": In instantiation of ",
+        ": In lambda function", ": At top level:", ": required from ", ": note: "
+    };
+    for (size_t i = 0; i < sizeof(markers) / sizeof(markers[0]); ++i) {
+        const char *at = strstr(text, markers[i]);
+        if (!at)
+            continue;
+        for (const char *p = text; p < at; ++p)
+            if (*p == '.' || *p == '/' || *p == '\\')
+                return true;
+    }
+    return strncmp(text, "In file included from ", 22) == 0;
+}
+
 level3_prediction level3_classify(sf_line line)
 {
     level3_prediction prediction = {.category = CATEGORY_UNKNOWN};
@@ -417,6 +453,12 @@ level3_prediction level3_classify(sf_line line)
         if (long_listing(text)) {
             prediction.category = CATEGORY_LISTING;
             prediction.scores[CATEGORY_LISTING] = 1;
+            return prediction;
+        }
+        /* Source text can itself contain words such as "warning:". */
+        if (diagnostic_context(text)) {
+            prediction.category = CATEGORY_DIAGNOSTIC;
+            prediction.scores[CATEGORY_DIAGNOSTIC] = 1;
             return prediction;
         }
     }
@@ -479,7 +521,7 @@ static const char *category_color(log_category category)
 {
     static const char *const colors[CATEGORY_COUNT] = {
         "\x1b[0;36m", "\x1b[0;1;31m", "\x1b[0;1;33m", "\x1b[0;37m",
-        "\x1b[0;1;32m", "\x1b[0;35m", "\x1b[0;36m", "\x1b[0;37m", "\x1b[0;2;37m", "\x1b[0;34m"
+        "\x1b[0;1;32m", "\x1b[0;35m", "\x1b[0;36m", "\x1b[0;37m", "\x1b[0;2;37m", "\x1b[0;34m", "\x1b[0;2;37m"
     };
     return colors[category];
 }
@@ -513,8 +555,8 @@ static bool filter(void *context, const void *config, sf_line line, sf_output *o
         return true;
     level3_prediction result = level3_classify(line);
     ++state->counts[result.category];
-    /* Abstention is unconditional: an uncertain guess cannot remove a line. */
-    if (result.category != CATEGORY_UNKNOWN && !(options->show & (1u << result.category))) {
+    /* Keep unknown data and compiler context visible under every selection. */
+    if (result.category != CATEGORY_UNKNOWN && result.category != CATEGORY_DIAGNOSTIC && !(options->show & (1u << result.category))) {
         ++state->lines_dropped;
         return false;
     }

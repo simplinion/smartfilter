@@ -14,6 +14,7 @@ typedef enum {
     CATEGORY_UNKNOWN,
     CATEGORY_FORMATTING, /* Deterministic separator category, outside the neural outputs. */
     CATEGORY_LISTING,
+    CATEGORY_DIAGNOSTIC,
     CATEGORY_COUNT
 } log_category;
 

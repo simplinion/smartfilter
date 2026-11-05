@@ -356,8 +356,9 @@ używa oryginalnej linii wejściowej zapisanej w `sf_line.original` i
 level 2 kopiuje ją podczas buforowania. Syntetyczne podsumowania nie mają
 jednej oryginalnej linii. Podsumowania
 `[repeat]` i definicje ścieżek są traktowane jako `unknown`, bo mogą zawierać
-informacje z różnych kategorii. Użyteczne szczegóły diagnostyczne (np. linie
-z `|` i `^`) również pozostają jako `unknown`.
+informacje z różnych kategorii. Nagłówki diagnostyk, fragmenty kodu z numerem
+linii i podkreślenia problemu dostają `diagnostic`; level 3 zachowuje je
+niezależnie od wyboru kategorii.
 
 Model jest prototypem trenowanym na ręcznie przygotowanym zbiorze startowym,
 głównie angielskim, a nie zweryfikowanym klasyfikatorem dowolnych logów.
@@ -396,8 +397,8 @@ Model korzysta z cech rozmiaru z jednostką (`B`, `bytes`, `KB`, `KiB`, `MB`,
 `MiB`, `GB`, `GiB`, `TB`, `TiB`) i procentu; nie musi znać nazwy pliku.
 Obsługiwane są ułamki z kropką lub przecinkiem. Sam procent w nagłówku
 `[49%] Building …` nie oznacza statystyk. Jawne ERROR/WARNING nadal mają
-pierwszeństwo. Wiersze z `|` pozostają zachowane jako `unknown`, zgodnie
-z ochroną kontekstu diagnostycznego.
+pierwszeństwo. Tabele z wieloma kolumnami rozdzielonymi `|` pozostają
+zachowane jako `unknown`; nie są automatycznie traktowane jako kod źródłowy.
 
 Kategoria `formatting` oznacza dekoracyjne separatory. Rozpoznawana jest
 regułą: co najmniej cztery jednakowe znaki `=`, `-` lub `*`, z opcjonalnymi
@@ -481,3 +482,23 @@ W levelu 3 jawne INFO jest kategorią zapasową, jeśli model nie ma dostateczni
 pewnej klasyfikacji semantycznej. Pewny wynik modelu może nadal rozpoznać
 postęp, np. `[INFO] Downloading …`; jawne błędy i warningi zachowują
 pierwszeństwo. Linie bez etykiety nie dziedziczą INFO z poprzedniej linii.
+
+Kategoria `diagnostic` oznacza kontekst diagnostyczny kompilatora:
+
+```text
+[diagnostic] src/port.c: In function 'xPortStartScheduler':
+[diagnostic]   315 | const portISR_t * const pxVectorTable = portSCB_VTOR_REG;
+[diagnostic]       |                         ^~~~~~~~~~~~~
+```
+
+Reguła rozpoznaje nagłówki `In function`, `In member function`, `At top level`,
+`In file included from`, fragmenty źródła z numerem linii/gutterem oraz
+podkreślenia z `^`. Sama obecność `|` w środku tekstu lub tabeli nie wystarcza.
+Kategoria jest regułowa i nie zmienia modelu neuronowego. W trybie `--color`
+jest przygaszona, a prefiks nadal ma 13 znaków.
+
+Level 3 zachowuje `diagnostic` przy każdym `--show`, tak jak `unknown`, aby
+wybranie samych wyników nie usuwało kontekstu problemu. Można też jawnie
+podać `--show error,warning,diagnostic`. To nie przywraca linii odrzuconych
+wcześniej w levelu 0 ani stderr nieprzekazanego do filtra — dla kompilatora
+zwykle potrzebne jest `2>&1` przed pipe.
