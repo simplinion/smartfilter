@@ -5,7 +5,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <sys/stat.h>
 
 static void print_usage(const char *prog) {
     fprintf(stderr, "SmartFilter Level 1 - Regex-based line filter\n");
