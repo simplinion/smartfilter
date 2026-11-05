@@ -83,14 +83,14 @@ Przykład (wcięcie to zwykłe spacje):
 
 ```text
 [INFO]   Installing resource 'dmfc': ./dmcrypto.dmfc
-                            ↳ dmd': ./dmcrypto.dmd
+                              ↳ d': ./dmcrypto.dmd
                             ↳ version': ./dmcrypto_version.txt
 ```
 
-Poziom `level2` porównuje linię z poprzednią pełną linią, która przeszła
-przez deduplikację. Wspólny prefiks zastępuje spacjami i znacznikiem `↳ `,
+Moduł `level1/compact.c` porównuje linię z poprzednią pełną linią, która
+przeszła przez deduplikację i opcjonalne skracanie ścieżek. Wspólny prefiks zastępuje spacjami i znacznikiem `↳ `,
 pozostawiając różniącą się część w tej samej kolumnie. Minimalny prefiks
-wynosi 4 bajty (`level2_config.minimum_prefix`). Pierwsza linia i linie
+wynosi 4 bajty (`level1_config.compaction.minimum_prefix`). Pierwsza linia i linie
 bez dostatecznie długiego prefiksu pozostają w całości. Pusta linia resetuje
 porównanie. Identyczne linie bez `-d` są pokazywane jako samo wcięcie i znacznik.
 
@@ -102,3 +102,83 @@ Kolory i style ANSI SGR są zachowywane, ale pomijane przy porównywaniu
 i liczeniu kolumn (także resety na początku następnej linii). Prefiksy
 z innymi kodami sterującymi lub niepoprawnym tekstem w danym locale
 nie są kompaktowane.
+
+Skracanie ścieżek włącza `-p` (domyślnie wyłączone):
+
+```sh
+some-command | smartfilter -p
+some-command | smartfilter -dcp
+```
+
+Wszystkie te funkcje należą do pierwszego poziomu. Kolejność to deduplikacja
+oryginalnych linii, skracanie ścieżek i kompaktowanie prefiksów. Moduły
+`level1/paths.c` i `level1/compact.c` mają stan wewnątrz `level1_context`;
+nie są osobnymi poziomami pipeline. Przed przetwarzaniem należy wywołać
+`level1_init`, a na końcu `level1_destroy` (również po błędzie inicjalizacji).
+
+Słownik od początku zna rzeczywisty katalog uruchomienia (`getcwd`, bez
+polegania na zmiennej środowiskowej). Nazwa skrótu pochodzi z nazwy katalogu,
+np. `/data/project/build` → `$build`, również dla bieżącego katalogu.
+
+Pozostałe wpisy powstają dopiero po powtórzeniu części katalogowej ścieżki.
+Filtr śledzi granice katalogów, więc `/data/projects/toolchain/sdk/include/a.h` oraz
+`/data/projects/toolchain/sdk/lib/b.a` wykrywają wspólną część `/data/projects/toolchain/sdk` → `$sdk`.
+Jednorazowa ścieżka poza znanym katalogiem nie tworzy skrótu. Wybierany jest
+wariant dający najkrótszy zapis spośród powtarzających się prefiksów
+na granicy katalogu.
+Wykrywanie działa również wewnątrz bieżącego katalogu.
+
+Przetwarzanie jest strumieniowe: pierwsze wystąpienie jest pełne, a skrót
+obowiązuje od wykrycia powtórzenia. Dotyczy to również dwóch ścieżek w jednej
+linii. Wcześniej wypisany output nie jest przepisywany. Przy `-dp` duplikaty
+całych linii są usuwane przed wykrywaniem powtarzających się ścieżek.
+
+Skróty wyświetlane w logach i słowniku nie mają prefiksu `SMARTFILTER_`.
+Nazwy zachowują wielkość liter; znaki spoza ASCII liter, cyfr i `_` są
+zastępowane `_`, a nazwy rozpoczynające się cyfrą dostają prefiks `_`.
+Dla różnych ścieżek o tej samej nazwie katalogu powstają np. `$include`
+i `$include_2`. Nazwy są stabilne do końca uruchomienia. Przed utworzeniem nowej zmiennej
+porównywane są: pełna ścieżka, zapis przez istniejące zmienne i zapis przez
+nową zmienną (łącznie z sufiksem przy konflikcie nazw). Nowa zmienna powstaje
+tylko wtedy, gdy daje ściśle krótszy wynik. Przy remisie wygrywa istniejący
+skrót, a jeśli żaden skrót nie pomaga, zostaje oryginalna ścieżka. Odrzucone
+propozycje nie rezerwują nazw ani nie trafiają do końcowego słownika.
+
+Ścieżki względne i adresy URL pozostają bez zmian. Ścieżki ze spacjami
+powinny być ujęte w pojedyncze lub podwójne cudzysłowy. Wykrywanie jest
+tekstowe i nie wymaga istnienia plików. Pamięć rośnie z liczbą poznanych
+prefiksów katalogowych.
+
+Domyślnie `-p` tylko podmienia ścieżki. Opcja `-P` dodatkowo wypisuje na
+końcu słownik użytych skrótów i sama również włącza podmianę ścieżek:
+
+```sh
+some-command | smartfilter -dcp   # podmiany bez słownika
+some-command | smartfilter -dcP   # podmiany i słownik
+```
+
+Przykładowy output z `-P`:
+
+```text
+/data/projects/toolchain/sdk/include/a.h
+$sdk/lib/b.a
+
+[paths]
+$sdk = /data/projects/toolchain/sdk
+```
+
+Definicje wypisywane przez `-P` odwołują się do nadrzędnego katalogu, którego użyty skrót daje
+najkrótszy zapis. Jeśli odwołanie nie skraca definicji, zostaje pełna ścieżka. Są wypisywane od katalogów nadrzędnych do podrzędnych,
+również jeśli rodzic został wykryty później niż dziecko. Przykład:
+
+```text
+$dmod_boot = /data/projects/chocotechnologies/public/dmod-boot
+$build = $dmod_boot/build
+$include = $build/include
+```
+
+Dopasowania respektują granice katalogów i nie tworzą cykli. Definicje
+omijają kompaktowanie prefiksów. Nazwy są skrótami w logu; filtr nie ustawia
+zmiennych środowiskowych w powłoce wywołującej: proces uruchomiony w pipe
+nie może zmienić środowiska swojego rodzica. Do sprawdzenia mapowania służy
+`-P`. Bez żadnej podmiany sekcja słownika nie jest dopisywana.

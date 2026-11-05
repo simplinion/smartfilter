@@ -40,8 +40,15 @@ static bool grow(level1_context *state)
     return true;
 }
 
+bool level1_init(level1_context *context, const level1_config *config)
+{
+    return !config->abbreviate_paths || paths_init(&context->paths);
+}
+
 void level1_destroy(level1_context *context)
 {
+    compact_destroy(&context->compaction);
+    paths_destroy(&context->paths);
     free(context->hashes);
     free(context->occupied);
     *context = (level1_context){0};
@@ -89,10 +96,30 @@ static bool filter(void *context, const void *config, sf_line line,
         state->occupied[index] = 1;
         ++state->count;
     }
+    sf_line transformed = line;
+    if (options->abbreviate_paths && !paths_transform(&state->paths, line, &transformed)) {
+        state->allocation_failed = true;
+        sf_output_fail(output);
+        return false;
+    }
+    if (!compact_filter(&state->compaction, &options->compaction, transformed, output))
+        return false;
+    if (transformed.data != line.data) {
+        sf_emit(output, transformed);
+        return false;
+    }
     return true;
+}
+
+static void finish(void *context, const void *config, sf_output *output)
+{
+    level1_context *state = context;
+    const level1_config *options = config;
+    if (options->abbreviate_paths && options->print_paths)
+        paths_finish(&state->paths, output);
 }
 
 sf_level level1_create(level1_context *context, const level1_config *config)
 {
-    return (sf_level){context, config, filter, NULL};
+    return (sf_level){context, config, filter, finish};
 }

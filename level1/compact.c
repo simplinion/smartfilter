@@ -1,4 +1,4 @@
-#include "level2/level2.h"
+#include "level1/compact.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -76,11 +76,11 @@ static bool columns(const char *data, size_t length, size_t *width)
     return true;
 }
 
-static bool filter(void *context, const void *config, sf_line line,
+bool compact_filter(void *context, const void *config, sf_line line,
                    sf_output *output)
 {
-    level2_context *state = context;
-    const level2_config *options = config;
+    compact_context *state = context;
+    const compact_config *options = config;
     if (!options->compact)
         return true;
 
@@ -161,14 +161,9 @@ fail:
     return false;
 }
 
-sf_level level2_create(level2_context *context, const level2_config *config)
-{
-    return (sf_level){context, config, filter, NULL};
-}
-
-void level2_destroy(level2_context *context)
+void compact_destroy(compact_context *context)
 {
     free(context->previous);
     free(context->rendered);
-    *context = (level2_context){0};
+    *context = (compact_context){0};
 }

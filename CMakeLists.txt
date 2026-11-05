@@ -15,7 +15,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_library(smartfilter_base base/base.c)
 target_include_directories(smartfilter_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(smartfilter main.c level1/level1.c level2/level2.c)
+add_executable(smartfilter main.c level1/level1.c level1/compact.c level1/paths.c)
 target_link_libraries(smartfilter PRIVATE smartfilter_base)
 target_compile_definitions(smartfilter PRIVATE _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700)
 
@@ -30,6 +30,9 @@ if(BUILD_TESTING)
     if(Python3_Interpreter_FOUND)
         add_test(NAME compaction COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/compact_test.py
+            $<TARGET_FILE:smartfilter>)
+        add_test(NAME paths COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/paths_test.py
             $<TARGET_FILE:smartfilter>)
     endif()
 endif()

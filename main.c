@@ -6,7 +6,6 @@
 
 #include "base/base.h"
 #include "level1/level1.h"
-#include "level2/level2.h"
 
 static bool write_line(void *context, sf_line line)
 {
@@ -17,28 +16,38 @@ static bool write_line(void *context, sf_line line)
 int main(int argc, char **argv)
 {
     setlocale(LC_CTYPE, "");
-    level2_context compact_context = {0};
-    level2_config compact_config = {.minimum_prefix = 4};
     level1_context context = {0};
-    level1_config config = {0};
+    level1_config config = {
+        .compaction = {.minimum_prefix = 4},
+    };
     int option;
-    while ((option = getopt(argc, argv, "dc")) != -1) {
+    while ((option = getopt(argc, argv, "dcpP")) != -1) {
         if (option == 'd')
             config.deduplicate = true;
+        else if (option == 'P') {
+            config.abbreviate_paths = true;
+            config.print_paths = true;
+        }
+        else if (option == 'p')
+            config.abbreviate_paths = true;
         else if (option == 'c')
-            compact_config.compact = true;
+            config.compaction.compact = true;
         else {
-            fprintf(stderr, "Usage: %s [-d] [-c]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P]\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
     if (optind != argc) {
-        fprintf(stderr, "Usage: %s [-d] [-c]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+    if (!level1_init(&context, &config)) {
+        fprintf(stderr, "smartfilter: cannot initialize path dictionary\n");
+        level1_destroy(&context);
         return EXIT_FAILURE;
     }
     const sf_level levels[] = {
         level1_create(&context, &config),
-        level2_create(&compact_context, &compact_config),
     };
     sf_pipeline pipeline = {
         .levels = levels,
@@ -65,15 +74,14 @@ int main(int argc, char **argv)
     }
     if (status == EXIT_SUCCESS && !sf_pipeline_finish(&pipeline))
         status = EXIT_FAILURE;
-    if (compact_context.allocation_failed)
+    if (context.compaction.allocation_failed)
         fprintf(stderr, "smartfilter: compaction allocation failed\n");
     if (context.allocation_failed)
-        fprintf(stderr, "smartfilter: deduplication allocation failed\n");
+        fprintf(stderr, "smartfilter: level1 allocation failed\n");
     if (fflush(stdout) == EOF || ferror(stdout)) {
         fprintf(stderr, "smartfilter: output write failed\n");
         status = EXIT_FAILURE;
     }
-    level2_destroy(&compact_context);
     level1_destroy(&context);
     free(buffer);
     return status;
