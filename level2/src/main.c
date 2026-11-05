@@ -22,16 +22,16 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "  -m, --mode MODE       Filter mode: aggressive, permissive, custom\n");
     fprintf(stderr, "  -c, --collapse N      Collapse consecutive repetitions (default: 3)\n");
     fprintf(stderr, "  -d, --dedup           Deduplicate (show each unique line once)\n");
-    fprintf(stderr, "  -C, --compact N       Compact similar lines (group if N+ similar, default: off)\n");
+    fprintf(stderr, "  -C, --compact         Compact similar lines (auto-group)\n");
     fprintf(stderr, "  -s, --similarity F    Similarity threshold 0.0-1.0 (default: 0.6)\n");
     fprintf(stderr, "  -b, --buffer N        Buffer size for pattern detection (default: 100)\n");
     fprintf(stderr, "  -l, --level TYPE      Minimum level: error, warning, info, debug, all\n");
     fprintf(stderr, "  -v, --verbose         Show filter stats at end\n");
     fprintf(stderr, "  -h, --help            Show this help\n");
     fprintf(stderr, "\nExamples:\n");
-    fprintf(stderr, "  make 2>&1 | %s -C 3     # compact 3+ similar lines\n", prog);
-    fprintf(stderr, "  make 2>&1 | %s -c 2 -C 4  # collapse 2x, compact 4+ similar\n", prog);
-    fprintf(stderr, "  make 2>&1 | %s -d -C 3   # dedup + compact\n", prog);
+    fprintf(stderr, "  make 2>&1 | %s -C          # compact similar lines\n", prog);
+    fprintf(stderr, "  make 2>&1 | %s -c 2 -C     # collapse 2x + compact similar\n", prog);
+    fprintf(stderr, "  make 2>&1 | %s -d -C       # dedup + compact similar\n", prog);
 }
 
 int main(int argc, char *argv[]) {
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     int verbose = 0;
     int no_collapse = 0;
     int dedup = 0;
-    int compact_min = 0;  // 0 = disabled
+    int compact_enabled = 0;  // flag, no argument
     double similarity = 0.6;
     int buffer_size = 100;
     
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
         {"level",      required_argument, 0, 'l'},
         {"collapse",   required_argument, 0, 'c'},
         {"dedup",      no_argument,       0, 'd'},
-        {"compact",    required_argument, 0, 'C'},
+        {"compact",    no_argument,       0, 'C'},
         {"similarity", required_argument, 0, 's'},
         {"buffer",     required_argument, 0, 'b'},
         {"verbose",    no_argument,       0, 'v'},
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     };
     
     int opt;
-    while ((opt = getopt_long(argc, argv, "m:l:c:C:s:b:dvhh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "m:l:c:Cs:b:dvhh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'm':
                 if (strcmp(optarg, "aggressive") == 0) mode = MODE_AGGRESSIVE;
@@ -87,8 +87,7 @@ int main(int argc, char *argv[]) {
                 break;
                 
             case 'C':
-                compact_min = atoi(optarg);
-                if (compact_min <= 0) compact_min = 0;
+                compact_enabled = 1;
                 break;
                 
             case 's':
@@ -133,8 +132,8 @@ int main(int argc, char *argv[]) {
     
     // Create compact (level2)
     CompactState *cs = NULL;
-    if (compact_min > 0) {
-        cs = compact_create(buffer_size, compact_min, similarity);
+    if (compact_enabled) {
+        cs = compact_create(buffer_size, 2, similarity);
         if (!cs) {
             fprintf(stderr, "Failed to create compact state\n");
             filter_destroy(f);
@@ -158,22 +157,31 @@ int main(int argc, char *argv[]) {
             line[len-1] = '\0';
         }
         
-        // Process through level1 filter first
-        bool shown;
-        const char *filtered = filter_process_ex(f, line, &shown);
-        
-        if (!shown) continue;
-        
-        if (filtered[0] == '\0') continue;
-        
-        // Then process through level2 compact (if enabled)
         if (cs && compact_is_enabled(cs)) {
-            const char *compacted = compact_process(cs, filtered);
-            if (compacted && compacted[0]) {
-                printf("%s\n", compacted);
+            // Compact controls output - filter first, then compact
+            bool shown;
+            const char *filtered = filter_process_ex(f, line, &shown);
+            (void)shown;  // compact decides if shown
+            
+            if (filtered && filtered[0]) {
+                const char *result = compact_process(cs, filtered);
+                if (result && result[0]) {
+                    printf("%s", result);
+                    // Ensure newline at end
+                    size_t rlen = strlen(result);
+                    if (result[rlen-1] != '\n') {
+                        fputc('\n', stdout);
+                    }
+                }
             }
         } else {
-            printf("%s\n", filtered);
+            // No compact - filter controls output directly
+            bool shown;
+            const char *filtered = filter_process_ex(f, line, &shown);
+            
+            if (shown && filtered[0]) {
+                printf("%s\n", filtered);
+            }
         }
     }
     
