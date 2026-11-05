@@ -192,8 +192,7 @@ bool compact_filter(void *context, const void *config, sf_line line,
             state->previous[state->previous_length++] = line.data[i++];
     }
     if (compact) {
-        sf_emit(output, (sf_line){.data = state->rendered,
-                .length = rendered_length});
+        sf_emit(output, sf_line_rewrite(line, state->rendered, rendered_length));
         return false;
     }
     return true;

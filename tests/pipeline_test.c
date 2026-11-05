@@ -51,6 +51,23 @@ static void finish(void *context, const void *config, sf_output *output)
     sf_emit(output, (sf_line){.data = "end\n", .length = 4});
 }
 
+static bool rewrite(void *context, const void *config, sf_line line, sf_output *output)
+{
+    (void)context;
+    (void)config;
+    sf_emit(output, sf_line_rewrite(line, "rewritten", 9));
+    return false;
+}
+
+static bool original_sink(void *context, sf_line line)
+{
+    (void)context;
+    return line.original && line.original_length == 8 &&
+           memcmp(line.original, "original", 8) == 0 &&
+           line.length == 9 && memcmp(line.data, "rewritten", 9) == 0 &&
+           line.hash == sf_line_hash(line);
+}
+
 #define CHECK(condition) do { if (!(condition)) { \
     fprintf(stderr, "failed at line %d: %s\n", __LINE__, #condition); \
     return 1; } } while (0)
@@ -82,5 +99,9 @@ int main(void)
     CHECK(sf_pipeline_process(&pipeline, (sf_line){.data = "raw", .length = 3}));
     CHECK(sf_pipeline_finish(&pipeline));
     CHECK(state.used == 3 && memcmp(state.bytes, "raw", 3) == 0);
+    const sf_level rewriting[] = {{NULL, NULL, rewrite, NULL}};
+    pipeline = (sf_pipeline){rewriting, 1, original_sink, NULL, false};
+    CHECK(sf_pipeline_process(&pipeline, (sf_line){.data = "original", .length = 8}));
+    CHECK(sf_pipeline_finish(&pipeline));
     return 0;
 }

@@ -387,8 +387,7 @@ bool paths_transform(paths_context *state, sf_line input, sf_line *result,
         boundary = false;
         i = end;
     }
-    *result = changed ? (sf_line){.data = state->rendered,
-                                .length = state->rendered_length} : input;
+    *result = changed ? sf_line_rewrite(input, state->rendered, state->rendered_length) : input;
     return true;
 }
 

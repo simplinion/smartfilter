@@ -15,8 +15,8 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_library(smartfilter_base base/base.c)
 target_include_directories(smartfilter_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(smartfilter main.c level0/level0.c level1/level1.c level1/compact.c level1/paths.c level2/level2.c)
-target_link_libraries(smartfilter PRIVATE smartfilter_base)
+add_executable(smartfilter main.c level0/level0.c level1/level1.c level1/compact.c level1/paths.c level2/level2.c level3/level3.c)
+target_link_libraries(smartfilter PRIVATE smartfilter_base m)
 target_compile_definitions(smartfilter PRIVATE _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700)
 
 install(TARGETS smartfilter RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -27,7 +27,14 @@ if(BUILD_TESTING)
     target_link_libraries(pipeline_test PRIVATE smartfilter_base)
     add_test(NAME pipeline COMMAND pipeline_test)
     find_package(Python3 QUIET COMPONENTS Interpreter)
+    add_executable(model_probe tests/model_probe.c level3/level3.c level0/level0.c)
+    target_link_libraries(model_probe PRIVATE smartfilter_base m)
+    target_compile_definitions(model_probe PRIVATE _POSIX_C_SOURCE=200809L)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME categories COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/categories_test.py
+            $<TARGET_FILE:smartfilter> $<TARGET_FILE:model_probe>
+            ${CMAKE_CURRENT_SOURCE_DIR}/level3/model/reference.json)
         add_test(NAME severity COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/severity_test.py
             $<TARGET_FILE:smartfilter>)

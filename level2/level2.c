@@ -18,6 +18,8 @@ typedef struct {
 struct block_line {
     char *raw;
     size_t length;
+    char *original;
+    size_t original_length;
     char *plain;
     token tokens[MAX_TOKENS];
     size_t token_count;
@@ -53,6 +55,7 @@ static bool word_is(token word, const char *text)
 
 static void release(block_line *line)
 {
+    free(line->original);
     free(line->raw);
     free(line->plain);
     free(line);
@@ -65,11 +68,17 @@ static void forget_pattern(level2_context *state)
     state->pattern_count = 0;
 }
 
+static sf_line buffered_line(const block_line *line)
+{
+    return (sf_line){.data = line->raw, .length = line->length,
+                    .original = line->original, .original_length = line->original_length};
+}
+
 static void drain(level2_context *state, sf_output *output)
 {
     for (size_t i = 0; i < state->count; ++i) {
         block_line *line = state->pending[i];
-        sf_emit(output, (sf_line){.data = line->raw, .length = line->length});
+        sf_emit(output, buffered_line(line));
         release(line);
     }
     state->count = state->bytes = 0;
@@ -85,6 +94,15 @@ static block_line *parse(sf_line input)
     if (!line->raw || !line->plain) {
         release(line);
         return NULL;
+    }
+    if (input.original) {
+        line->original = malloc(input.original_length ? input.original_length : 1);
+        if (!line->original) {
+            release(line);
+            return NULL;
+        }
+        memcpy(line->original, input.original, input.original_length);
+        line->original_length = input.original_length;
     }
     memcpy(line->raw, input.data, input.length);
     line->length = input.length;
@@ -418,7 +436,7 @@ static void finish_frame(level2_context *state, const level2_config *options,
         state->cache_bytes += state->bytes;
         for (size_t i = 0; i < state->count; ++i) {
             block_line *line = state->pending[i];
-            sf_emit(output, (sf_line){.data = line->raw, .length = line->length});
+            sf_emit(output, buffered_line(line));
             pattern->lines[i] = line;
         }
         state->count = state->bytes = 0;
@@ -434,7 +452,9 @@ static bool filter(void *context, const void *config, sf_line input, sf_output *
     const level2_config *options = config;
     if (!options->collapse_blocks)
         return true;
-    if (input.length > options->maximum_bytes) {
+    size_t original_bytes = input.original ? input.original_length : 0;
+    size_t bytes = original_bytes > SIZE_MAX - input.length ? SIZE_MAX : input.length + original_bytes;
+    if (bytes > options->maximum_bytes) {
         drain(state, output);
         forget_pattern(state);
         state->frame_active = false;
@@ -459,14 +479,14 @@ static bool filter(void *context, const void *config, sf_line input, sf_output *
     if (state->framed_stream) {
         if (!state->frame_active || !line->safe ||
             state->count == LEVEL2_MAX_BLOCK_LINES ||
-            input.length > options->maximum_bytes - state->bytes) {
+            bytes > options->maximum_bytes - state->bytes) {
             drain(state, output);
             state->frame_active = false;
             release(line);
             return true;
         }
         state->pending[state->count++] = line;
-        state->bytes += input.length;
+        state->bytes += bytes;
         if (state->count > 1 && subject_complete(state->pending[0], line))
             finish_frame(state, options, output);
         return false;
@@ -478,12 +498,12 @@ static bool filter(void *context, const void *config, sf_line input, sf_output *
         return true;
     }
     if (state->count == LEVEL2_MAX_BUFFER_LINES ||
-        input.length > options->maximum_bytes - state->bytes) {
+        bytes > options->maximum_bytes - state->bytes) {
         drain(state, output);
         forget_pattern(state);
     }
     state->pending[state->count++] = line;
-    state->bytes += input.length;
+    state->bytes += bytes;
     bindings map;
     if (state->pattern_count) {
         if (similar(state->pattern, state->pending, state->count, &map)) {
@@ -509,7 +529,7 @@ static bool filter(void *context, const void *config, sf_line input, sf_output *
         size_t second = state->count - size;
         for (size_t i = 0; i < second; ++i) {
             block_line *original = state->pending[i];
-            sf_emit(output, (sf_line){.data = original->raw, .length = original->length});
+            sf_emit(output, buffered_line(original));
         }
         summary(state->pending + start, state->pending + second, size, output);
         for (size_t i = 0; i < second; ++i)

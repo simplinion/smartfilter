@@ -26,6 +26,8 @@ for label, flag in [('INFO', '-i'), ('verbose', '-v'), ('warn', '-w'),
                     ('WARNING', '-w'), ('Error', '-e'), ('ERR', '-e')]:
     check('[' + label + '] x\nkeep\n', 'keep\n', flag)
     check(label + ': x\nkeep\n', 'keep\n', flag)
+    check(label + ' : x\nkeep\n', 'keep\n', flag)
+    check(label + '\t\x1b[34m \x1b[0m: x\nkeep\n', 'keep\n', flag)
     check('\x1b[0m \x1b[34m[' + label + '] x\n\x1b[0mkeep\n',
           '\x1b[0mkeep\n', flag)
 check('[IN\x1b[34mFO\x1b[0m] hidden\n', '', '-i')
@@ -51,4 +53,6 @@ block = ('[1/2] Downloading module: alpha\n[INFO] Working for alpha\nInstalled: 
          '[2/2] Downloading module: beta\n[INFO] Working for beta\nInstalled: beta@1.0\n')
 check(block, ('[1/2] Downloading module: alpha\nInstalled: alpha@1.0\n'
               '[2/2] Downloading module: beta\nInstalled: beta@1.0\n'), '-ib')
+check('Info \n: keep\n', 'Info \n: keep\n', '-i')
+check('Info details: keep\n', 'Info details: keep\n', '-i')
 print('Severity CLI checks passed')

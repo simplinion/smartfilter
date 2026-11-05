@@ -10,6 +10,8 @@
 typedef struct {
     const char *data;
     size_t length;
+    const char *original; /* Borrowed input before rewrites; NULL for synthetic output. */
+    size_t original_length;
     uint64_t hash; /* Set by the pipeline; hash of all length bytes. */
 } sf_line;
 
@@ -46,6 +48,8 @@ typedef struct {
 /* Output handles must not be retained after the callback returns. */
 /* Construct raw lines with designated .data and .length initializers.
  * Pipeline entry and emit compute the hash once, before dispatch. */
+/* Preserve provenance when replacing the displayed contents of one line. */
+sf_line sf_line_rewrite(sf_line source, const char *data, size_t length);
 uint64_t sf_line_hash(sf_line line);
 void sf_output_fail(sf_output *output);
 bool sf_emit(sf_output *output, sf_line line);

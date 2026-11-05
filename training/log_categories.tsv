@@ -1,0 +1,475 @@
+# Curated bootstrap examples, not a representative production corpus.
+# One template per row; expansions remain in the same train/validation split.
+progress	Downloading module: {target}
+progress	[INFO] Downloading: /tmp/{target}.zip
+progress	Building C object {target}.o
+progress	[40%] Building CXX object src/{target}.cpp.o
+progress	Linking C executable {target}
+progress	Linking CXX shared library lib{target}.so
+progress	Compiling source file {target}.c
+progress	Installing resource 'docs': ./docs => /opt/{target}/docs
+progress	[INFO] Installing package {target}
+progress	Extracting archive {target}.tar.gz
+progress	Unpacking module {target}
+progress	Fetching dependency {target}
+progress	Resolving dependencies for {target}
+progress	Processing dependencies for {target}
+progress	[INFO] Processing resource file: {target}.dmr
+progress	Generating build files for {target}
+progress	Configuring target {target}
+progress	Scanning dependencies of target {target}
+progress	Running compilation step for {target}
+progress	Copying package contents to /opt/{target}
+progress	[INFO] Dependencies file copied to: /tmp/{target}.dmd
+result	[INFO] Module installed to: /opt/{target}.dmfc
+progress	[INFO] Downloaded: /tmp/{target}.zip (4000 bytes)
+result	Successfully installed: 104 packages
+result	Built target {target}
+progress	[INFO] Package contents copied to: /tmp/{target}
+progress	[INFO] Found dependencies file: {target}.dmd
+progress	[INFO] Selected module file: {target}.dmfc
+progress	[INFO] Found resource file: {target}.dmr
+result	[INFO] Resource installed successfully
+progress	Checking compiler flags for {target}
+progress	Waiting for build job {target}
+progress	Uploading artifact {target}
+progress	[INFO] Download completed successfully
+result	Build completed successfully
+result	Installation finished successfully
+error	[ERROR] Failed to download {target}
+error	Downloading {target} failed: connection refused
+error	Building {target} failed
+error	Linking {target} failed: missing symbol
+error	Cannot compile {target}
+error	Unable to open file {target}
+error	Could not resolve host {target}
+error	Cannot find package {target}
+error	fatal error: {target}.h: No such file or directory
+error	undefined reference to {target}
+error	collect2: error: ld returned 1 exit status
+error	make: *** [target] Error 2
+error	Permission denied while installing {target}
+error	No space left on device
+error	Segmentation fault in {target}
+error	Traceback (most recent call last):
+error	RuntimeError: operation failed for {target}
+error	Compilation terminated
+error	The build stopped because a command failed
+error	Package installation failed
+error	Connection timed out while fetching {target}
+error	Unresolved external symbol {target}
+error	Failed to link executable {target}
+error	The download was not successful
+error	Build did not complete successfully
+error	[INFO] Failed to process dependencies for {target}
+error	[INFO] Unable to install module {target}
+error	[INFO] Downloading failed: checksum mismatch
+error	Assertion failed in {target}
+error	Invalid configuration for target {target}
+error	Checksum mismatch for {target}
+error	Unable to locate required library {target}
+error	Ninja: build stopped: subcommand failed
+error	Cannot create output directory
+error	The linker reported an undefined symbol
+warning	[WARNING] Deprecated API used by {target}
+warning	[WARN] Retrying download for {target}
+warning	warning: unused variable {target}
+warning	warning: implicit declaration of function {target}
+warning	CMake Warning at CMakeLists.txt:12
+warning	{target} is deprecated and will be removed
+warning	Potential memory leak in {target}
+warning	This option is experimental
+warning	The package version is not recommended
+warning	Falling back to default configuration
+warning	Download retry scheduled for {target}
+warning	Build succeeded with warnings
+warning	The following warnings were generated
+warning	Duplicate definition ignored for {target}
+warning	Unsupported option ignored for {target}
+warning	[INFO] Warning: signature verification was skipped
+warning	[INFO] Using deprecated configuration for {target}
+warning	[INFO] Retrying after a temporary download failure
+warning	Compatibility warning for module {target}
+warning	The module uses an obsolete interface
+warning	Warning: target {target} may not work
+warning	Conversion may change the value of {target}
+warning	This feature is deprecated
+warning	Ignoring unknown configuration option {target}
+warning	Insecure connection configuration detected
+version	[INFO] Version: 1.2.3
+info	[INFO] Target architecture: armv7
+info	[INFO] Compiler: GCC
+info	[INFO] Crossplatform mode enabled
+info	[INFO] Module loaded: {target} Size: 2758 B
+info	[INFO] To debug module in gdb: add-symbol-file
+info	[INFO] Found: {target}@0.19 at /tmp/archive.zip
+progress	[INFO] Found 7 resource entries in file
+info	[INFO] Available memory: 4096 bytes
+info	[INFO] Output directory: /tmp/{target}
+info	[VERBOSE] Configuration value: {target}
+info	[DEBUG] Symbol address: 0x123456
+info	[TRACE] Function entered: {target}
+version	Current package version is 0.19
+info	The selected board is {target}
+info	Using compiler GCC for architecture armv7
+info	The configured output format is ELF
+info	No errors were found
+info	No warnings were reported
+info	Error count: 0
+info	The build command is available
+info	Download URL: https://example.com/archive.zip
+info	Linking options: -lm -lc
+info	Building is disabled in this configuration
+info	Downloading is disabled for this package
+info	The error message format is configurable
+info	Information about download settings
+info	Compilation database path: /tmp/compile_commands.json
+version	Compiler version: GCC 13
+info	Available targets: {target}
+unknown	^
+unknown	| return missing_symbol();
+unknown	42 | value = unavailable;
+unknown	main.c:42:3
+unknown	in file included from header.h:12
+unknown	at application.c:15
+unknown	TOTAL 4096 8192
+unknown	File RAM ROM
+unknown	-----------------------------
+unknown	=============================
+unknown	{target}
+unknown	4000
+unknown	/usr/local/include/{target}.h
+unknown	$ext/{target}.dmfc
+unknown	$build = /data/projects/build
+unknown	[paths]
+unknown	[repeat] {target} (13 similar lines)
+unknown	[59/59] [repeat] {target} (13 lines; like other)
+unknown	alpha beta gamma
+unknown	struct item *next;
+unknown	int main(void)
+unknown	# include <stdio.h>
+unknown	~^~~~~~~~~
+unknown	... more output ...
+unknown	?
+progress	Downloading target {target}
+progress	[INFO] Downloading module {target}
+progress	Downloading dependency files for {target}
+progress	Building target {target}
+progress	[INFO] Building module {target}
+progress	Building dependency files for {target}
+progress	Linking target {target}
+progress	[INFO] Linking module {target}
+progress	Linking dependency files for {target}
+progress	Compiling target {target}
+progress	[INFO] Compiling module {target}
+progress	Compiling dependency files for {target}
+progress	Installing target {target}
+progress	[INFO] Installing module {target}
+progress	Installing dependency files for {target}
+progress	Extracting target {target}
+progress	[INFO] Extracting module {target}
+progress	Extracting dependency files for {target}
+progress	Unpacking target {target}
+progress	[INFO] Unpacking module {target}
+progress	Unpacking dependency files for {target}
+progress	Fetching target {target}
+progress	[INFO] Fetching module {target}
+progress	Fetching dependency files for {target}
+progress	Resolving target {target}
+progress	[INFO] Resolving module {target}
+progress	Resolving dependency files for {target}
+progress	Processing target {target}
+progress	[INFO] Processing module {target}
+progress	Processing dependency files for {target}
+progress	Generating target {target}
+progress	[INFO] Generating module {target}
+progress	Generating dependency files for {target}
+progress	Configuring target {target}
+progress	[INFO] Configuring module {target}
+progress	Configuring dependency files for {target}
+progress	Scanning target {target}
+progress	[INFO] Scanning module {target}
+progress	Scanning dependency files for {target}
+progress	Copying target {target}
+progress	[INFO] Copying module {target}
+progress	Copying dependency files for {target}
+progress	Checking target {target}
+progress	[INFO] Checking module {target}
+progress	Checking dependency files for {target}
+progress	Uploading target {target}
+progress	[INFO] Uploading module {target}
+progress	Uploading dependency files for {target}
+error	Failed to build {target}
+error	Cannot build module {target}
+error	Unable to build target {target}
+error	The build operation did not complete successfully
+error	[INFO] build failed for {target}
+progress	The build operation completed successfully
+error	Failed to download {target}
+error	Cannot download module {target}
+error	Unable to download target {target}
+error	The download operation did not complete successfully
+error	[INFO] download failed for {target}
+progress	The download operation completed successfully
+error	Failed to link {target}
+error	Cannot link module {target}
+error	Unable to link target {target}
+error	The link operation did not complete successfully
+error	[INFO] link failed for {target}
+progress	The link operation completed successfully
+error	Failed to compile {target}
+error	Cannot compile module {target}
+error	Unable to compile target {target}
+error	The compile operation did not complete successfully
+error	[INFO] compile failed for {target}
+progress	The compile operation completed successfully
+error	Failed to install {target}
+error	Cannot install module {target}
+error	Unable to install target {target}
+error	The install operation did not complete successfully
+error	[INFO] install failed for {target}
+progress	The install operation completed successfully
+error	Failed to extract {target}
+error	Cannot extract module {target}
+error	Unable to extract target {target}
+error	The extract operation did not complete successfully
+error	[INFO] extract failed for {target}
+progress	The extract operation completed successfully
+error	Failed to fetch {target}
+error	Cannot fetch module {target}
+error	Unable to fetch target {target}
+error	The fetch operation did not complete successfully
+error	[INFO] fetch failed for {target}
+progress	The fetch operation completed successfully
+error	Failed to configure {target}
+error	Cannot configure module {target}
+error	Unable to configure target {target}
+error	The configure operation did not complete successfully
+error	[INFO] configure failed for {target}
+progress	The configure operation completed successfully
+error	Failed to copy {target}
+error	Cannot copy module {target}
+error	Unable to copy target {target}
+error	The copy operation did not complete successfully
+error	[INFO] copy failed for {target}
+progress	The copy operation completed successfully
+error	Failed to upload {target}
+error	Cannot upload module {target}
+error	Unable to upload target {target}
+error	The upload operation did not complete successfully
+error	[INFO] upload failed for {target}
+progress	The upload operation completed successfully
+error	No space available on device
+error	Disk full while creating output
+error	Socket connection timed out
+error	Connection refused by remote host
+error	The linker could not resolve symbol {target}
+error	Error: command exited with status 1
+error	Compilation failed for module {target}
+error	Download has not completed successfully
+error	Build not successful
+error	Installation was not successful
+error	Configuration cannot be loaded
+error	Cannot create required directory
+info	Target architecture selected: armv7
+info	Board architecture: armv7
+info	The target architecture is cortex-m7
+info	Crossplatform mode enabled for loading
+info	To debug module {target} in gdb use add-symbol-file
+info	Debug symbols located at address 0x123456
+info	Module loaded at address 0x123456
+info	Compilation database file is compile_commands.json
+info	Compilation database was generated in /tmp
+info	Compilation flags: -O2
+info	Linking flags: -lm
+info	Downloading option is disabled
+info	Building option is disabled
+info	Available compilation targets: {target}
+info	Available build targets: {target}
+info	Target board: stm32f746
+info	Selected target platform: linux
+info	Download settings are available
+info	The error message is only an example
+info	No build errors detected
+info	No compilation warnings found
+info	Available memory: 16384 bytes
+version	Compiler information: gcc version 13
+version	Installed package version: 1.2.3
+progress	[INFO] Found dependencies file: package.dmd
+progress	[INFO] Found resource file: package.dmr
+progress	[INFO] Selected package file: package.zip
+progress	Dependencies file copied into output directory
+progress	Package contents copied successfully
+result	Module installation completed successfully
+progress	Found resource entries in manifest
+warning	Warning: unused parameter {target}
+warning	Warning: conversion changes value
+warning	Conversion from long to int may change the value
+warning	Warning: an unsupported option was ignored
+warning	The following warning was generated
+warning	Warning: this target may not work on this platform
+warning	Deprecated function {target} is used
+warning	Deprecated field {target} will be removed
+warning	Ignoring deprecated command line option
+warning	Using obsolete module interface
+warning	Potential unsafe conversion detected
+warning	Build completed with warnings
+warning	Warning while downloading package
+warning	Warning while building target
+warning	Retrying after download failure
+warning	Temporary failure, retrying connection
+unknown	source.c:10:2
+unknown	header.h:15:5
+unknown	| foo = bar;
+unknown	| int result = call();
+unknown	note: previous declaration was here
+unknown	required from here
+unknown	included from source.c:5
+unknown	==== memory report ====
+unknown	File | RAM | ROM
+unknown	entry 0x12345
+unknown	4 | return value;
+unknown	...
+unknown	^^^^^^^^^^^^
+progress	[40%] Building C object CMakeFiles/{target}.dir/source.o
+progress	Building C objects for target {target}
+progress	Linking C executable {target}.elf
+progress	[80%] Linking C shared library lib{target}.so
+progress	Compiling C source into object file
+progress	[40%] Building CXX object CMakeFiles/{target}.dir/source.o
+progress	Building CXX objects for target {target}
+progress	Linking CXX executable {target}.elf
+progress	[80%] Linking CXX shared library lib{target}.so
+progress	Compiling CXX source into object file
+progress	[40%] Building ASM object CMakeFiles/{target}.dir/source.o
+progress	Building ASM objects for target {target}
+progress	Linking ASM executable {target}.elf
+progress	[80%] Linking ASM shared library lib{target}.so
+progress	Compiling ASM source into object file
+info	Selected target platform is {target}
+info	Target platform selected: linux
+info	The configured platform is linux
+info	Selected target board is {target}
+result	Installed: {target}@0.19
+result	Installed: {target}@1.2.3
+result	[INFO] Installed: {target}@2.0
+result	Installed: {target}@>=0.3<1.0
+result	Installed: {target}@0.19 successfully
+info	Available package: {target}@1.0
+version	Selected package version: {target}@1.2.3
+version	Package version information: {target}@0.19
+error	Failed to install {target}@1.0
+warning	Warning: {target}@1.0 is deprecated
+result	[100%] Built target {target}
+result	[70%] Built target {target}
+result	[100%] Built target download_ext_modules
+result	Built target library_{target}
+result	Build finished successfully
+result	Build succeeded for {target}
+result	Build successful
+result	Target {target} built successfully
+result	Successfully built target {target}
+result	Completed build of {target}
+result	All build targets completed successfully
+result	Build result: success
+result	Final build status: completed
+result	[INFO] Build finished successfully
+result	[INFO] Built target {target}
+result	Link completed successfully for {target}
+result	Successfully generated executable {target}
+result	Target {target} completed successfully
+result	All tests passed
+result	Test result: passed
+result	Tests completed successfully
+result	100% tests passed, 0 tests failed
+result	Successfully completed target {target}
+result	Build complete for {target}
+info	Build result reporting is enabled
+error	Build result: failed
+error	Build finished with errors
+progress	Building target {target} is still in progress
+stats	{target}.dmp                          174.66 KB      49.4%
+stats	{target}.bin 12.4 KB 5.1%
+stats	{target}.elf 1.25 MB 25.0%
+stats	{target}.o 512 B 0.5%
+stats	{target}.so 4.8 MiB 17.5%
+stats	{target}.a 42 KiB 8%
+stats	{target}.dmp 174,66 KB 49,4%
+stats	{target}.dmp 174.66KB 49.4%
+stats	{target}.dmp 174.66 kb 49.4 %
+stats	$build/{target}.dmp 174.66 KB 49.4%
+stats	/tmp/{target}.bin 0.2 GB 14.0%
+stats	.text 180 KiB 76%
+stats	.data 4 KiB 2%
+stats	.bss 10 KB 18%
+stats	Memory usage: 100 KB 25%
+stats	RAM usage: 128 KiB (50.0%)
+stats	ROM usage: 1.5 MiB (75%)
+stats	Total size: 254.8 KB 100%
+stats	Flash usage: 72 KB 32%
+stats	Heap utilization: 4096 bytes 12.0%
+stats	RAM free: 10 KB 20%
+stats	Disk used: 5 GiB 42.5%
+progress	[49%] Building C object {target}.o
+progress	[49%] Linking C executable {target}
+progress	Downloading {target}: 50% (120 KB received)
+progress	Uploading {target}: 25% (32 KiB sent)
+progress	Copying {target}: 75% (40 MB copied)
+progress	Downloading package {target}: 10 MB 50%
+progress	Building target {target}: 50%
+error	[ERROR] Memory limit exceeded: 100 KB 99%
+warning	[WARN] RAM almost full: 100 KB 99%
+info	Info : auto-selecting first available session transport "hla_swd". To override use 'transport select <transport>'.
+info	Info : The selected transport took over low-level target control. The results might differ compared to plain JTAG/SWD
+info	Info : clock speed 2000 kHz
+info	Info : STLINK V2J37M27 (API v2) VID:PID 0483:374B
+info	Info : Target voltage: 3.208388
+info	Info : [{target}.cpu] Cortex-M7 r0p1 processor detected
+info	Info : [{target}.cpu] target has 8 breakpoints, 4 watchpoints
+info	Info : starting gdb server for {target}.cpu on 3333
+info	Info : Listening on port 3333 for gdb connections
+info	Info : Unable to match requested speed 2000 kHz, using 1800 kHz
+info	Info : device id = 0x10016449
+info	Info : flash size = 1024 KiB
+info	Info : target has 6 breakpoints and 4 watchpoints
+info	Info : Available hardware breakpoints: 8
+info	Info : Target processor supports 4 watchpoints
+info	Info : Processor identification register: 0x410fc271
+info	Info : Server listening on TCP port 4444
+info	Info : Listening on port 6666 for tcl connections
+info	Info : Using adapter speed 1800 kHz
+info	Info : Adapter clock frequency: 4000 kHz
+warning	Warn : [{target}.cpu] Silicon bug: single stepping may enter pending exception handler!
+error	Error : unable to connect to target {target}
+version	Open On-Chip Debugger 0.12.0
+version	Open On-Chip Debugger 0.11.0+dev
+version	Open On-Chip Debugger 0.12.0 (2026-11-05)
+version	Open On-Chip Debugger v0.13.0
+version	OpenOCD debugger version 0.12.0
+version	GNU debugger GDB 13.2
+version	GNU gdb (GDB) 14.1
+version	gcc version 13.3.0
+version	gcc (Ubuntu 13.3.0) 13.3.0
+version	arm-none-eabi-gcc (GNU Arm Embedded Toolchain) 13.2.1
+version	clang version 18.1.0
+version	Debian clang version 16.0.6
+version	cmake version 3.28.3
+version	GNU Make 4.3
+version	Python 3.12.3
+version	Python version 3.11.9
+version	Tool version: 1.2.3
+version	{target} version 2.4.0
+version	Version: 1.0.0
+version	[INFO] Running tool version 1.2.3
+version	Debugger version: 12.1
+version	Compiler version: clang 18.0
+version	Package version: 0.19
+version	Firmware version: 2.0.1
+version	GNU toolchain version 13.2.1
+version	OpenOCD 0.12.0
+version	GNU GDB debugger version 14.2
+info	Licensed under GNU GPL v2
+progress	Building module {target} version 1.2.3
+progress	Downloading package {target} version 0.19
+error	Error: unsupported compiler version 1.2.3
+warning	Warning: this version is deprecated

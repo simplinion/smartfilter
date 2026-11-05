@@ -69,7 +69,15 @@ log_type level0_classify(sf_line line)
                 ch = peek(&input);
             } while (letter(ch));
             word[length] = '\0';
-            bool marked = ch == ':' || (previous == '[' && ch == ']');
+            /* OpenOCD and similar tools put horizontal whitespace before ':'.
+             * Look ahead without consuming it or crossing a physical line. */
+            cursor after_word = input;
+            int delimiter = ch;
+            while (delimiter == ' ' || delimiter == '\t') {
+                ++after_word.position;
+                delimiter = peek(&after_word);
+            }
+            bool marked = delimiter == ':' || (previous == '[' && ch == ']');
             log_type type = too_long || !marked ? LOG_UNKNOWN : type_of(word);
             if (type != LOG_UNKNOWN)
                 return type;

@@ -318,9 +318,166 @@ i pozostają widoczne. Inne warianty instalacji, dodatkowe zasoby i różne
 zależności mogą celowo pozostać w całości.
 
 Minimalny blok ma 3 linie, maksymalny 128. Bufor bieżącej operacji i pamięć
-wzorców mają osobne limity po 1 MiB surowych danych (poza narzutem analizy).
+wzorców mają osobne limity po 1 MiB danych (tekst wyświetlany i oryginał, poza narzutem analizy).
 Najstarsze wzorce są usuwane po wyczerpaniu pamięci lub 16 wpisów. Ogólne
 wykrywanie bez nagłówków buforuje do 256 linii. Zbyt długie lub niekompletne
 operacje są wypisywane bez skracania. Output może być opóźniony do końca
 operacji, zapełnienia bufora lub EOF. Parametry znajdują się w `level2_config`.
 Bez `-b` drugi poziom przekazuje output bez zmian i bez buforowania.
+
+Poziom 3 dodaje kategoryzację znaczenia linii, bez generowania streszczeń.
+Mały model neuronowy rozpoznaje `progress`, `result`, `stats`, `version`, `error`, `warning`, `info`
+lub zwraca `unknown`. Jest wyłączony domyślnie:
+
+```sh
+# Najpierw obejrzyj kategoryzację, zachowując wszystkie linie:
+cmake --build . 2>&1 | smartfilter -dcpub --classify
+
+# Jawnie wybierz kategorie:
+cmake --build . 2>&1 | smartfilter -dcpub --show progress,error,warning
+
+# Można łączyć obie opcje:
+some-command | smartfilter --show error,warning --classify
+```
+
+`--classify` dodaje prefiks, np. `[progress]`, zachowując oryginalną treść.
+`--show` jest listą rozdzieloną przecinkami; `all` pokazuje wszystkie
+kategorie. Bez jawnego wyboru nic nie jest usuwane. Niepewne linie
+(`unknown`) pozostają widoczne niezależnie od wyboru, także przy
+`--show error,warning`. Nie ma automatycznego komunikatu sukcesu ani
+zgadywania wyniku komendy.
+
+Level 0 filtruje **oznaczenia** (`[INFO]`), a level 3 ocenia treść:
+`[INFO] Downloading module: firmware` może być `progress`. Jeżeli wcześniej
+użyto `-i`, linia zostanie jednak usunięta w levelu 0 i nie dotrze do modelu.
+Level 3 wypisuje output levelu 2, włącznie ze skrótami, ale do klasyfikacji
+używa oryginalnej linii wejściowej zapisanej w `sf_line.original` i
+`sf_line.original_length`. Transformacje jednej linii zachowują tę informację;
+level 2 kopiuje ją podczas buforowania. Syntetyczne podsumowania nie mają
+jednej oryginalnej linii. Podsumowania
+`[repeat]` i definicje ścieżek są traktowane jako `unknown`, bo mogą zawierać
+informacje z różnych kategorii. Użyteczne szczegóły diagnostyczne (np. linie
+z `|` i `^`) również pozostają jako `unknown`.
+
+Model jest prototypem trenowanym na ręcznie przygotowanym zbiorze startowym,
+głównie angielskim, a nie zweryfikowanym klasyfikatorem dowolnych logów.
+Błędy i ostrzeżenia z jawnym oznaczeniem mają pierwszeństwo przed oceną
+modelu. Próg wyniku 0.90 i margines 0.30 służą odrzucaniu niepewnych ocen;
+nie gwarantują poprawności rozpoznania. Warto zacząć od `--classify`.
+
+Trening w Pythonie i eksport wag do C opisuje [training/README.md](training/README.md).
+Wagi są wkompilowane; gotowy program nie potrzebuje Pythona ani bibliotek ML.
+
+Kategoria `result` oznacza komunikat o zakończeniu kroku, np.:
+
+```text
+[result]     [100%] Built target download_ext_modules
+```
+
+Nie oznacza to automatycznie, że cała komenda zakończyła się sukcesem.
+`Installed: pakiet@wersja` również jest wynikiem (`result`),
+a `Installing …` oznacza postęp (`progress`). Wyniki można
+wybrać przez `--show result` lub `--show progress,result,error,warning`.
+
+`sf_line.data` i `length` opisują bieżący tekst, a `original` i
+`original_length` oryginalne wejście. Oba widoki są pożyczone na czas callbacku;
+buforujący poziom musi je kopiować. `sf_line_rewrite` zachowuje oryginał przy
+zmianie wyświetlanej treści. `sf_emit` dla nowej linii syntetycznej pozostawia
+oryginał pusty. Hash nadal dotyczy bieżącej treści.
+
+Kategoria `stats` obejmuje wiersze pomiarowe, np. rozmiar pliku i jego udział:
+
+```text
+[stats]      modules.dmp                          174.66 KB      49.4%
+```
+
+Wybór: `--show stats` albo np. `--show progress,result,stats,error,warning`.
+Model korzysta z cech rozmiaru z jednostką (`B`, `bytes`, `KB`, `KiB`, `MB`,
+`MiB`, `GB`, `GiB`, `TB`, `TiB`) i procentu; nie musi znać nazwy pliku.
+Obsługiwane są ułamki z kropką lub przecinkiem. Sam procent w nagłówku
+`[49%] Building …` nie oznacza statystyk. Jawne ERROR/WARNING nadal mają
+pierwszeństwo. Wiersze z `|` pozostają zachowane jako `unknown`, zgodnie
+z ochroną kontekstu diagnostycznego.
+
+Kategoria `formatting` oznacza dekoracyjne separatory. Rozpoznawana jest
+regułą: co najmniej cztery jednakowe znaki `=`, `-` lub `*`, z opcjonalnymi
+białymi znakami dookoła i kolorami ANSI. Przykład:
+
+```text
+[formatting] ============================================================
+```
+
+Można ją wybrać przez `--show formatting`, np. połączyć z wynikami przez
+`--show result,formatting`. Nie jest dodawana do modelu neuronowego —
+wykrywanie samej dekoracji jest deterministyczne i nie wymaga treningu.
+Linie zawierające tekst (`=== Memory usage ===`), mieszane znaki ramek,
+wielokropki, puste linie i podkreślenia diagnostyczne (`^^^^`, `~^~~~`)
+nie są traktowane jako dekoracyjny separator. Rozpoznawanie korzysta
+z oryginalnej linii, także po kompaktowaniu i buforowaniu.
+
+Prefiks `--classify` ma stałą szerokość: obecnie 13 znaków, dopasowaną
+do najdłuższej nazwy kategorii. Krótsze etykiety są dopełniane spacjami
+po `]`, więc oryginalna treść i jej wcięcia zaczynają się w tej samej kolumnie:
+
+```text
+[error]      ...
+[stats]      ...
+[formatting] ...
+```
+
+Kolorowanie całych linii według kategorii włącza `--color` (ANSI/VT100):
+
+```sh
+cmake --build . 2>&1 | smartfilter -dcpub --classify --color
+some-command | smartfilter --show progress,result,error,warning --color
+```
+
+Opcja sama włącza klasyfikację, ale nie wymaga drukowania prefiksu
+`--classify`. Postęp jest turkusowy, błędy czerwone, ostrzeżenia żółte,
+wyniki zielone, statystyki fioletowe, info i unknown białe, a formatting
+przygaszone. W trybie `--color` wcześniejsze kody stylów/kolorów SGR są
+usuwane z wyświetlanej treści, żeby nie nadpisywały koloru kategorii.
+Inne kody sterujące i oryginał używany do klasyfikacji pozostają zachowane.
+Każda linia kończy styl resetem przed newline/CRLF, również gdy nie ma
+końcowego newline. Kody nie zajmują kolumn; szerokość prefiksu nadal wynosi
+13 znaków. Kolorowanie jest jawne i działa także przy przekierowaniu do
+pliku lub pipe; bez `--color` obsługa kolorów pozostaje bez zmian.
+
+Kategoria `listing` rozpoznaje wiersze długiego listingu `ls -l`, np.:
+
+```text
+[listing]    -rw-r--r--  1 patryk patryk   308 lis  5 16:04 automount.dmfc
+```
+
+Rozpoznawanie jest regułowe: sprawdza typ pliku, uprawnienia, liczbę dowiązań,
+właściciela, grupę, rozmiar, datę/czas i obecność nazwy pliku. Obsługuje
+katalogi, dowiązania symboliczne, znaczniki ACL/atrybutów, rozmiary `ls -lh`,
+daty z lokalizowanym miesiącem oraz format `YYYY-MM-DD HH:MM`. Nazwy mogą
+zawierać spacje; tekst `error:` w nazwie nie zmienia kategorii na błąd.
+Samo `-rw-r--r--` bez kolejnych pól nie wystarcza do dopasowania.
+
+Wybór: `--show listing` lub np. `--show result,stats,listing`. Z `--color`
+listing jest niebieski. Prefiks zachowuje stałą szerokość 13 znaków.
+Reguła korzysta z oryginalnej linii, więc działa także po kompaktowaniu.
+Nie wymaga ponownego treningu modelu.
+
+Kategoria `version` rozpoznaje bannery i komunikaty drukujące wersję, np.:
+
+```text
+[version]    Open On-Chip Debugger 0.12.0
+[version]    cmake version 3.28.3
+```
+
+Wybór: `--show version` lub np. `--show info,version,warning,error`.
+Z `--color` wersja jest turkusowa. Sam numer w komunikacie operacji nie
+wystarcza: budowanie/pobieranie konkretnej wersji pakietu nadal jest postępem.
+
+Level 0 rozpoznaje także spacje/tabulatory przed dwukropkiem, np. OpenOCD
+`Info :`, `Warn :`, `Error :`, bez względu na wielkość liter i kolory ANSI.
+Dzięki temu działają na nich `-i`, `-w` i `-e`. Dopasowanie nie przechodzi
+przez newline i nie utożsamia `Info details:` z etykietą `Info :`.
+
+W levelu 3 jawne INFO jest kategorią zapasową, jeśli model nie ma dostatecznie
+pewnej klasyfikacji semantycznej. Pewny wynik modelu może nadal rozpoznać
+postęp, np. `[INFO] Downloading …`; jawne błędy i warningi zachowują
+pierwszeństwo. Linie bez etykiety nie dziedziczą INFO z poprzedniej linii.

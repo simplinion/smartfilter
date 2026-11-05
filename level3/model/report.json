@@ -1,0 +1,106 @@
+{
+  "corpus": "manually curated bootstrap templates; not production validation",
+  "dataset_sha256": "e12be2618a278b43421a11145cb05b499b86a67fd7a3084bd9c85686543b2733",
+  "training_templates": 381,
+  "validation_templates": 92,
+  "features": 355,
+  "hidden_units": 24,
+  "validation_accuracy_before_abstention": 0.8260869565217391,
+  "validation_confident_coverage": 0.5,
+  "validation_confident_accuracy": 1.0,
+  "classes": [
+    "progress",
+    "error",
+    "warning",
+    "info",
+    "result",
+    "stats",
+    "version",
+    "unknown"
+  ],
+  "confidence_threshold": 0.9,
+  "margin_threshold": 0.3,
+  "minimum_known_content_words": 2,
+  "confusion_matrix_before_abstention": [
+    [
+      23,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      15,
+      2,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      13,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      6,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      3,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      2,
+      0,
+      0,
+      0,
+      4
+    ]
+  ]
+}

@@ -24,6 +24,13 @@ static bool dispatch(sf_pipeline *pipeline, size_t index, sf_line line)
     return !pipeline->failed;
 }
 
+sf_line sf_line_rewrite(sf_line source, const char *data, size_t length)
+{
+    return (sf_line){.data = data, .length = length,
+        .original = source.original ? source.original : source.data,
+        .original_length = source.original ? source.original_length : source.length};
+}
+
 uint64_t sf_line_hash(sf_line line)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
@@ -47,6 +54,10 @@ bool sf_emit(sf_output *output, sf_line line)
 
 bool sf_pipeline_process(sf_pipeline *pipeline, sf_line line)
 {
+    if (!line.original) {
+        line.original = line.data;
+        line.original_length = line.length;
+    }
     line.hash = sf_line_hash(line);
     return dispatch(pipeline, 0, line);
 }

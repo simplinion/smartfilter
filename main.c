@@ -3,16 +3,29 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "base/base.h"
 #include "level0/level0.h"
 #include "level1/level1.h"
 #include "level2/level2.h"
+#include "level3/level3.h"
 
 static bool write_line(void *context, sf_line line)
 {
     FILE *stream = context;
     return fwrite(line.data, 1, line.length, stream) == line.length;
+}
+
+static void usage(const char *program)
+{
+    fprintf(stderr, "Usage: %s [-dcpPubview] [--classify] [--color] [--show LIST]\n"
+            "  -v/-i/-e/-w  hide explicit verbose/info/error/warning labels (level 0)\n"
+            "  -d deduplicate; -c compact; -p paths; -P print dictionary; -u URLs; -b blocks\n"
+            "  --classify   annotate level3 categories without changing line contents\n"
+            "  --color      color complete lines by level3 category (ANSI/VT100)\n"
+            "  --show LIST  progress,error,warning,info,result,stats,version,formatting,listing,unknown or all\n"
+            "               uncertain/unknown lines always remain visible\n", program);
 }
 
 int main(int argc, char **argv)
@@ -22,13 +35,37 @@ int main(int argc, char **argv)
     level0_config prefilter_config = {0};
     level1_context context = {0};
     level2_context blocks = {0};
+    level3_context categories = {0};
+    level3_config category_config = {.show = LEVEL3_ALL};
     level2_config block_config = {.minimum_lines = 3, .maximum_bytes = 1024 * 1024};
     level1_config config = {
         .compaction = {.minimum_prefix = 4},
     };
+    enum { OPT_CLASSIFY = 1000, OPT_SHOW, OPT_COLOR };
+    static const struct option long_options[] = {
+        {"classify", no_argument, NULL, OPT_CLASSIFY},
+        {"color", no_argument, NULL, OPT_COLOR},
+        {"show", required_argument, NULL, OPT_SHOW},
+        {"help", no_argument, NULL, 'h'},
+        {NULL, 0, NULL, 0},
+    };
     int option;
-    while ((option = getopt(argc, argv, "dcpPubview")) != -1) {
-        if (option == 'v')
+    while ((option = getopt_long(argc, argv, "dcpPubviewh", long_options, NULL)) != -1) {
+        if (option == OPT_CLASSIFY) {
+            category_config.enabled = category_config.annotate = true;
+        } else if (option == OPT_COLOR) {
+            category_config.enabled = category_config.color = true;
+        } else if (option == OPT_SHOW) {
+            if (!level3_parse_categories(optarg, &category_config.show)) {
+                fprintf(stderr, "smartfilter: invalid category list: %s\n", optarg);
+                usage(argv[0]);
+                return EXIT_FAILURE;
+            }
+            category_config.enabled = true;
+        } else if (option == 'h') {
+            usage(argv[0]);
+            return EXIT_SUCCESS;
+        } else if (option == 'v')
             prefilter_config.hide_verbose = true;
         else if (option == 'i')
             prefilter_config.hide_info = true;
@@ -51,12 +88,12 @@ int main(int argc, char **argv)
         else if (option == 'c')
             config.compaction.compact = true;
         else {
-            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b] [-v] [-i] [-e] [-w]\n", argv[0]);
+            usage(argv[0]);
             return EXIT_FAILURE;
         }
     }
     if (optind != argc) {
-        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b] [-v] [-i] [-e] [-w]\n", argv[0]);
+        usage(argv[0]);
         return EXIT_FAILURE;
     }
     if (!level1_init(&context, &config)) {
@@ -68,6 +105,7 @@ int main(int argc, char **argv)
         level0_create(&prefilter, &prefilter_config),
         level1_create(&context, &config),
         level2_create(&blocks, &block_config),
+        level3_create(&categories, &category_config),
     };
     sf_pipeline pipeline = {
         .levels = levels,
@@ -94,6 +132,8 @@ int main(int argc, char **argv)
     }
     if (status == EXIT_SUCCESS && !sf_pipeline_finish(&pipeline))
         status = EXIT_FAILURE;
+    if (categories.allocation_failed)
+        fprintf(stderr, "smartfilter: level3 allocation failed\n");
     if (blocks.allocation_failed)
         fprintf(stderr, "smartfilter: level2 allocation failed\n");
     if (context.compaction.allocation_failed)
@@ -104,6 +144,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "smartfilter: output write failed\n");
         status = EXIT_FAILURE;
     }
+    level3_destroy(&categories);
     level2_destroy(&blocks);
     level1_destroy(&context);
     free(buffer);
