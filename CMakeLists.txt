@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 project(smartfilter VERSION 0.1.0 LANGUAGES C)
 
@@ -15,9 +15,9 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_library(smartfilter_base base/base.c)
 target_include_directories(smartfilter_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(smartfilter main.c level1/level1.c)
+add_executable(smartfilter main.c level1/level1.c level2/level2.c)
 target_link_libraries(smartfilter PRIVATE smartfilter_base)
-target_compile_definitions(smartfilter PRIVATE _POSIX_C_SOURCE=200809L)
+target_compile_definitions(smartfilter PRIVATE _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700)
 
 install(TARGETS smartfilter RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
@@ -26,4 +26,10 @@ if(BUILD_TESTING)
     add_executable(pipeline_test tests/pipeline_test.c)
     target_link_libraries(pipeline_test PRIVATE smartfilter_base)
     add_test(NAME pipeline COMMAND pipeline_test)
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME compaction COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/compact_test.py
+            $<TARGET_FILE:smartfilter>)
+    endif()
 endif()

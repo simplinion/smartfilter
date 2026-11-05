@@ -72,3 +72,33 @@ Wyszukiwanie ma średnią złożoność O(1), a pamięć O(liczba unikalnych has
 Przechowujemy wyłącznie hashe: kolizja 64-bitowego hasha również powoduje
 pominięcie linii. Kontekst poziomu należy zwolnić przez `level1_destroy`,
 także po błędzie. Brak pamięci zatrzymuje program z błędem.
+
+Kompaktowanie wspólnych prefiksów włącza `-c`; można je łączyć z `-d`:
+
+```sh
+some-command | smartfilter -dc
+```
+
+Przykład (wcięcie to zwykłe spacje):
+
+```text
+[INFO]   Installing resource 'dmfc': ./dmcrypto.dmfc
+                            ↳ dmd': ./dmcrypto.dmd
+                            ↳ version': ./dmcrypto_version.txt
+```
+
+Poziom `level2` porównuje linię z poprzednią pełną linią, która przeszła
+przez deduplikację. Wspólny prefiks zastępuje spacjami i znacznikiem `↳ `,
+pozostawiając różniącą się część w tej samej kolumnie. Minimalny prefiks
+wynosi 4 bajty (`level2_config.minimum_prefix`). Pierwsza linia i linie
+bez dostatecznie długiego prefiksu pozostają w całości. Pusta linia resetuje
+porównanie. Identyczne linie bez `-d` są pokazywane jako samo wcięcie i znacznik.
+
+Pamiętana jest tylko poprzednia pełna linia i bufor wyjściowy; pamięć jest
+proporcjonalna do najdłuższej linii. Wygenerowany output przechodzi przez
+`sf_emit`, więc kolejne poziomy dostają hash nowej treści. Szerokości znaków
+są określane według locale użytkownika, a tabulatory mają tabstopy co 8 kolumn.
+Kolory i style ANSI SGR są zachowywane, ale pomijane przy porównywaniu
+i liczeniu kolumn (także resety na początku następnej linii). Prefiksy
+z innymi kodami sterującymi lub niepoprawnym tekstem w danym locale
+nie są kompaktowane.
