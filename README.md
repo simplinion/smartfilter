@@ -240,3 +240,57 @@ podobnie jak kodowanie procentowe. URL-e nie są normalizowane przez reguły
 plików (`..` i wielkość liter pozostają bez zmian). Obsługiwane są też porty,
 adresy IPv6 oraz kolory ANSI wokół adresu. W nieujętych w cudzysłowy logach
 nawiasy i przecinki traktowane są jako separatory tekstu.
+
+Drugi poziom włącza flaga `-b`. Analizuje output pierwszego poziomu,
+również po kompaktowaniu przez `↳`:
+
+```sh
+cmake --build . | smartfilter -dcpub
+```
+
+Pierwsze wystąpienie danego układu linii pokazuje w całości, kolejne
+rozpoznane operacje zastępuje podsumowaniem ze wskazaniem wcześniejszego wzorca:
+
+```text
+[58/59] Downloading module: mv
+...pełny pierwszy blok...
+Installed: mv@0.19
+[59/59] [repeat] find (13 lines; like mv)
+```
+
+Nagłówki `[n/N] ...: nazwa` wyznaczają początek operacji. Koniec musi być
+potwierdzony komunikatem Installed/Completed/Finished/Done/Built dotyczącym
+tej samej nazwy. Nazwa podoperacji, np. `lib-mv`, nie kończy operacji `mv`.
+W takim strumieniu filtr nie skraca osobno przypadkowych fragmentów środka
+operacji ani zagnieżdżonych zależności. Niepełne operacje, dodatkowe kroki,
+błędy i przekroczenia limitu pozostają widoczne.
+
+Filtr pamięta do 16 różnych wcześniej pokazanych, kompletnych układów.
+Dzięki temu po operacji innego typu nadal może rozpoznać poprzedni wariant.
+Pięć linii pozostałych po deduplikacji i pełne trzynaście linii to osobne
+układy; filtr nie zgaduje brakujących kroków. Jeśli w strumieniu nie ma
+nagłówków postępu, proste kolejne bloki są porównywane ostrożnie: muszą mieć
+różne akcje początku/końca i komunikat zakończenia. Powtarzające się wiersze
+tabeli lub same liczby nie stanowią takiego bloku.
+
+Dopasowanie ignoruje kolory ANSI, początkowe wcięcia, znacznik `↳` oraz
+prefiksy INFO/DEBUG/TRACE i postępu. Liczby, wersje (np. `1.2` i `1.2.3`),
+adresy szesnastkowe i tokeny ścieżek/aliasów mogą się zmieniać. Różnice nazw
+w pierwszej linii tworzą podstawienia, które muszą pozostać spójne w kolejnych
+liniach. Pozostałe słowa i interpunkcja muszą pasować; co najmniej połowa
+porównywanych słów każdej linii musi być stała. Dopasowanie toleruje kilka
+pominiętych słów początkowych w liniach z `↳`, bez odtwarzania usuniętej treści.
+
+To heurystyka, nie potwierdzenie powodzenia operacji. Podsumowanie oznacza
+podobny układ logu, nie deklarację sukcesu. Linie zawierające słowa WARN,
+WARNING, ERROR, FATAL, FAILED, FAIL lub EXCEPTION przerywają dopasowanie
+i pozostają widoczne. Inne warianty instalacji, dodatkowe zasoby i różne
+zależności mogą celowo pozostać w całości.
+
+Minimalny blok ma 3 linie, maksymalny 128. Bufor bieżącej operacji i pamięć
+wzorców mają osobne limity po 1 MiB surowych danych (poza narzutem analizy).
+Najstarsze wzorce są usuwane po wyczerpaniu pamięci lub 16 wpisów. Ogólne
+wykrywanie bez nagłówków buforuje do 256 linii. Zbyt długie lub niekompletne
+operacje są wypisywane bez skracania. Output może być opóźniony do końca
+operacji, zapełnienia bufora lub EOF. Parametry znajdują się w `level2_config`.
+Bez `-b` drugi poziom przekazuje output bez zmian i bez buforowania.

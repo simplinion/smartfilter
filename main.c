@@ -6,6 +6,7 @@
 
 #include "base/base.h"
 #include "level1/level1.h"
+#include "level2/level2.h"
 
 static bool write_line(void *context, sf_line line)
 {
@@ -17,17 +18,21 @@ int main(int argc, char **argv)
 {
     setlocale(LC_CTYPE, "");
     level1_context context = {0};
+    level2_context blocks = {0};
+    level2_config block_config = {.minimum_lines = 3, .maximum_bytes = 1024 * 1024};
     level1_config config = {
         .compaction = {.minimum_prefix = 4},
     };
     int option;
-    while ((option = getopt(argc, argv, "dcpPu")) != -1) {
+    while ((option = getopt(argc, argv, "dcpPub")) != -1) {
         if (option == 'd')
             config.deduplicate = true;
         else if (option == 'P') {
             config.abbreviate_paths = true;
             config.print_paths = true;
         }
+        else if (option == 'b')
+            block_config.collapse_blocks = true;
         else if (option == 'u')
             config.abbreviate_urls = true;
         else if (option == 'p')
@@ -35,12 +40,12 @@ int main(int argc, char **argv)
         else if (option == 'c')
             config.compaction.compact = true;
         else {
-            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b]\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
     if (optind != argc) {
-        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-d] [-c] [-p] [-P] [-u] [-b]\n", argv[0]);
         return EXIT_FAILURE;
     }
     if (!level1_init(&context, &config)) {
@@ -50,6 +55,7 @@ int main(int argc, char **argv)
     }
     const sf_level levels[] = {
         level1_create(&context, &config),
+        level2_create(&blocks, &block_config),
     };
     sf_pipeline pipeline = {
         .levels = levels,
@@ -76,6 +82,8 @@ int main(int argc, char **argv)
     }
     if (status == EXIT_SUCCESS && !sf_pipeline_finish(&pipeline))
         status = EXIT_FAILURE;
+    if (blocks.allocation_failed)
+        fprintf(stderr, "smartfilter: level2 allocation failed\n");
     if (context.compaction.allocation_failed)
         fprintf(stderr, "smartfilter: compaction allocation failed\n");
     if (context.allocation_failed)
@@ -84,6 +92,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "smartfilter: output write failed\n");
         status = EXIT_FAILURE;
     }
+    level2_destroy(&blocks);
     level1_destroy(&context);
     free(buffer);
     return status;
