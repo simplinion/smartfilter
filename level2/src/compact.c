@@ -121,17 +121,20 @@ const char *compact_process(CompactState *cs, const char *line) {
     
     // Different from previous
     if (cs->similar_pending > 0) {
-        // Output a summary line for hidden similar lines
-        snprintf(compact_output, sizeof(compact_output), 
-                 "  \033[90m[%dx similar]\033[0m", cs->similar_pending);
-        cs->total_lines_out++;
+        // Output summary line for hidden similar lines, then the new line
+        // Format: [-> Nx similar: <example>] where example is truncated last_shown
+        char example[96];
+        size_t llen = strlen(cs->last_shown);
+        if (llen > 80) {
+            snprintf(example, sizeof(example), "%.77s...", cs->last_shown);
+        } else {
+            snprintf(example, sizeof(example), "%s", cs->last_shown);
+        }
+        snprintf(compact_output, sizeof(compact_output),
+                 "  \033[90m[-> %dx similar: %s]\033[0m\n%s",
+                 cs->similar_pending, example, line);
+        cs->total_lines_out += 2;
         cs->groups_detected++;
-        
-        // Need to also output the new line - so combine
-        char combined[8192];
-        snprintf(combined, sizeof(combined), "%s\n%s", compact_output, line);
-        strcpy(compact_output, combined);
-        cs->total_lines_out++;
     } else {
         // Just show the new line
         strcpy(compact_output, line);
@@ -149,7 +152,14 @@ const char *compact_process(CompactState *cs, const char *line) {
 void compact_flush(CompactState *cs) {
     if (!cs) return;
     if (cs->similar_pending > 0) {
-        printf("  \033[90m[%dx similar]\033[0m\n", cs->similar_pending);
+        char example[96];
+        size_t llen = strlen(cs->last_shown);
+        if (llen > 80) {
+            snprintf(example, sizeof(example), "%.77s...", cs->last_shown);
+        } else {
+            snprintf(example, sizeof(example), "%s", cs->last_shown);
+        }
+        printf("  \033[90m[-> %dx similar: %s]\033[0m\n", cs->similar_pending, example);
         cs->total_lines_out++;
     }
     cs->similar_pending = 0;
