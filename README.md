@@ -83,13 +83,16 @@ Przykład (wcięcie to zwykłe spacje):
 
 ```text
 [INFO]   Installing resource 'dmfc': ./dmcrypto.dmfc
-                              ↳ d': ./dmcrypto.dmd
+                            ↳ dmd': ./dmcrypto.dmd
                             ↳ version': ./dmcrypto_version.txt
 ```
 
 Moduł `level1/compact.c` porównuje linię z poprzednią pełną linią, która
 przeszła przez deduplikację i opcjonalne skracanie ścieżek. Wspólny prefiks zastępuje spacjami i znacznikiem `↳ `,
-pozostawiając różniącą się część w tej samej kolumnie. Minimalny prefiks
+pozostawiając różniącą się część w tej samej kolumnie. Jeśli różnica wypada
+wewnątrz słowa, prefiks cofa się do jego początku: `for` → `from` pokazuje
+całe `from`, zamiast samego `rom`. Litery, cyfry i `_` są trzymane razem;
+interpunkcja, np. `/` lub `-`, może stanowić granicę skracania. Minimalny prefiks
 wynosi 4 bajty (`level1_config.compaction.minimum_prefix`). Pierwsza linia i linie
 bez dostatecznie długiego prefiksu pozostają w całości. Pusta linia resetuje
 porównanie. Identyczne linie bez `-d` są pokazywane jako samo wcięcie i znacznik.
@@ -144,10 +147,31 @@ tylko wtedy, gdy daje ściśle krótszy wynik. Przy remisie wygrywa istniejący
 skrót, a jeśli żaden skrót nie pomaga, zostaje oryginalna ścieżka. Odrzucone
 propozycje nie rezerwują nazw ani nie trafiają do końcowego słownika.
 
-Ścieżki względne i adresy URL pozostają bez zmian. Ścieżki ze spacjami
-powinny być ujęte w pojedyncze lub podwójne cudzysłowy. Wykrywanie jest
-tekstowe i nie wymaga istnienia plików. Pamięć rośnie z liczbą poznanych
-prefiksów katalogowych.
+Filtr rozpoznaje ścieżki absolutne, `./…`, `../…` i względne zapisy
+z ukośnikiem, np. `generated/include/a.h`. Ścieżki względne są wiązane
+z katalogiem uruchomienia, a `.` i `..` normalizowane tekstowo. Wariant
+absolutny i względny tej samej ścieżki korzystają ze wspólnego słownika:
+
+```text
+./generated/intermediate/include/a.h
+$include/b.h
+```
+
+Warunek skrócenia porównuje wynik z oryginalnym zapisem, więc np. `./a`
+nie zostanie wydłużone do aliasu bieżącego katalogu. Bez podmiany zachowany
+jest dokładny oryginalny tekst. Ścieżki ze spacjami powinny być ujęte
+w pojedyncze lub podwójne cudzysłowy. Same nazwy plików bez ukośnika
+nie są interpretowane jako ścieżki.
+
+Adresy URL, opcje zaczynające się od `-`, ułamki typu `1/10`, daty złożone
+z cyfr i ukośników oraz wyrażenia z `$`, `~` lub wildcardami pozostają
+bez zmian. Wykrywanie względnych ścieżek jest heurystyką: słowo z ukośnikiem
+może być uznane za ścieżkę również wtedy, gdy nie oznacza pliku.
+
+Wykrywanie nie wymaga istnienia plików. Normalizacja nie rozwiązuje dowiązań
+symbolicznych, więc `..` jest interpretowane wyłącznie tekstowo. Filtr
+nie śledzi zmian katalogu procesów potomnych; bazą jest zawsze katalog
+uruchomienia smartfilter. Pamięć rośnie z liczbą poznanych prefiksów.
 
 Domyślnie `-p` tylko podmienia ścieżki. Opcja `-P` dodatkowo wypisuje na
 końcu słownik użytych skrótów i sama również włącza podmianę ścieżek:

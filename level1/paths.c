@@ -139,7 +139,8 @@ static void assign_name(paths_context *state, path_entry *entry)
 /* Maximize saved bytes, rather than matched prefix length. Existing variables
  * win ties; candidate names (including collision suffixes) reserve nothing
  * until selected and actually used. */
-static path_entry *shortest(paths_context *state, const char *data, size_t length)
+static path_entry *shortest(paths_context *state, const char *data, size_t length,
+                            size_t original_length)
 {
     path_entry *best = NULL;
     size_t savings = 0;
@@ -158,9 +159,12 @@ static path_entry *shortest(paths_context *state, const char *data, size_t lengt
                 assign_name(state, &proposal);
             }
             size_t name_length = strlen(proposal.name);
-            if (name_length < entry->length && entry->length - name_length > savings) {
+            size_t suffix_length = length - entry->length;
+            if (suffix_length <= original_length &&
+                name_length < original_length - suffix_length &&
+                original_length - suffix_length - name_length > savings) {
                 best = entry;
-                savings = entry->length - name_length;
+                savings = original_length - suffix_length - name_length;
                 memcpy(best_name, proposal.name, sizeof(best_name));
             }
         }
@@ -170,23 +174,100 @@ static path_entry *shortest(paths_context *state, const char *data, size_t lengt
     return best;
 }
 
+/* Resolve text lexically, without requiring files to exist. As with build
+ * logs generally, the caller's cwd is the base; no child chdir is inferred. */
+static char *resolve(const paths_context *state, const char *data, size_t length)
+{
+    bool absolute = data[0] == '/';
+    size_t base = absolute ? 0 : state->entries[0].length;
+    if (length > SIZE_MAX - base - 2)
+        return NULL;
+    char *path = malloc(base + length + 2);
+    if (!path)
+        return NULL;
+    if (base) {
+        memcpy(path, state->entries[0].value, base);
+        path[base++] = '/';
+    }
+    memcpy(path + base, data, length);
+    size_t total = base + length;
+    size_t written = 1;
+    path[0] = '/';
+    for (size_t i = 1; i < total;) {
+        while (i < total && path[i] == '/')
+            ++i;
+        size_t start = i;
+        while (i < total && path[i] != '/')
+            ++i;
+        size_t count = i - start;
+        if (!count || (count == 1 && path[start] == '.'))
+            continue;
+        if (count == 2 && path[start] == '.' && path[start + 1] == '.') {
+            while (written > 1 && path[written - 1] != '/')
+                --written;
+            if (written > 1)
+                --written;
+            continue;
+        }
+        if (written > 1)
+            path[written++] = '/';
+        memmove(path + written, path + start, count);
+        written += count;
+    }
+    if (length && data[length - 1] == '/' && written > 1)
+        path[written++] = '/';
+    path[written] = '\0';
+    return path;
+}
+
+static bool candidate(const char *data, size_t length)
+{
+    if (!length || data[0] == '-' || data[0] == '$' || data[0] == '~' ||
+        data[0] == '\\' || (length > 1 && data[0] == '/' && data[1] == '/'))
+        return false;
+    bool slash = false;
+    bool only_numbers = true;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char ch = (unsigned char)data[i];
+        if (ch == '/')
+            slash = true;
+        else if (ch < '0' || ch > '9')
+            only_numbers = false;
+        /* Shell substitutions and globs are not literal path components. */
+        if (ch == '$' || ch == '\\' || ch == '?' || ch == '*' || ch == '|')
+            return false;
+    }
+    return slash && (data[0] == '/' || !only_numbers);
+}
+
 bool paths_transform(paths_context *state, sf_line input, sf_line *result)
 {
     state->rendered_length = 0;
     bool changed = false;
+    bool boundary = true;
     for (size_t i = 0; i < input.length;) {
-        /* Avoid relative paths, URL authorities, and slashes inside words. */
-        bool start = input.data[i] == '/' &&
-                     (i == 0 || (delimiter((unsigned char)input.data[i - 1]) &&
-                                 input.data[i - 1] != ':')) &&
-                     (i + 1 == input.length || input.data[i + 1] != '/');
-        if (!start) {
-            if (!append(state, input.data + i, 1))
+        /* Preserve ANSI sequences as opaque bytes and allow a path directly
+         * after an SGR color, without treating its parameters as log text. */
+        if (input.data[i] == '\x1b' && i + 1 < input.length && input.data[i + 1] == '[') {
+            size_t end = i + 2;
+            while (end < input.length &&
+                   !((unsigned char)input.data[end] >= 0x40 &&
+                     (unsigned char)input.data[end] <= 0x7e))
+                ++end;
+            if (end < input.length)
+                ++end;
+            if (!append(state, input.data + i, end - i))
                 return false;
-            ++i;
+            i = end;
             continue;
         }
-        size_t end = i + 1;
+        if (delimiter((unsigned char)input.data[i])) {
+            boundary = input.data[i] != ':';
+            if (!append(state, input.data + i++, 1))
+                return false;
+            continue;
+        }
+        size_t end = i;
         char quote = i && (input.data[i - 1] == '\'' || input.data[i - 1] == '"')
                      ? input.data[i - 1] : 0;
         while (end < input.length) {
@@ -195,18 +276,40 @@ bool paths_transform(paths_context *state, sf_line input, sf_line *result)
                 break;
             ++end;
         }
-        size_t length = end - i;
-        if (!observe(state, input.data + i, length))
-            return false;
-        path_entry *entry = shortest(state, input.data + i, length);
-        if (entry) {
-            if (!append(state, entry->name, strlen(entry->name)) ||
-                !append(state, input.data + i + entry->length, length - entry->length))
+        /* A control byte that isn't a parsed CSI sequence is copied verbatim. */
+        if (end == i) {
+            if (!append(state, input.data + i++, 1))
                 return false;
-            changed = state->used = entry->used = true;
-        } else if (!append(state, input.data + i, length)) {
-            return false;
+            boundary = true;
+            continue;
         }
+        size_t length = end - i;
+        path_entry *entry = NULL;
+        char *resolved = NULL;
+        if (boundary && candidate(input.data + i, length)) {
+            resolved = resolve(state, input.data + i, length);
+            if (!resolved)
+                return false;
+            size_t resolved_length = strlen(resolved);
+            if (!observe(state, resolved, resolved_length)) {
+                free(resolved);
+                return false;
+            }
+            entry = shortest(state, resolved, resolved_length, length);
+            if (entry) {
+                bool ok = append(state, entry->name, strlen(entry->name)) &&
+                          append(state, resolved + entry->length, resolved_length - entry->length);
+                if (!ok) {
+                    free(resolved);
+                    return false;
+                }
+                changed = state->used = entry->used = true;
+            }
+        }
+        free(resolved);
+        if (!entry && !append(state, input.data + i, length))
+            return false;
+        boundary = false;
         i = end;
     }
     *result = changed ? (sf_line){.data = state->rendered,

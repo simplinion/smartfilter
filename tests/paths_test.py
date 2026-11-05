@@ -122,4 +122,42 @@ with tempfile.TemporaryDirectory(prefix='smartfilter-paths-') as root:
     assert run(text, ('-P',), report=False) == body + footer(('inc', '/opt/sdk/inc'))
     assert run(text, ('-P', '-p'), report=False) == body + footer(('inc', '/opt/sdk/inc'))
     assert run(text, (), report=False) == text
+    # Explicit and implicit relative paths share the canonical directory key.
+    relative = 'generated/intermediate/include'
+    text = './' + relative + '/a.h\n' + relative + '/b.h\n'
+    assert run(text) == ('./' + relative + '/a.h\n$include/b.h\n' +
+                         footer(('include', cwd + '/' + relative)))
+    # The absolute form contributes observations to the same dictionary.
+    text = f'"{cwd}/{relative}/a.h"\n{relative}/b.h\n'
+    assert run(text) == ('"$working_directory/' + relative + '/a.h"\n$include/b.h\n' +
+                         footer(('working_directory', cwd),
+                                ('include', '$working_directory/' + relative)))
+    # Dot components are normalized lexically; no real files need exist.
+    text = './generated/./intermediate/tmp/../include/a.h\n' + relative + '/b.h\n'
+    assert run(text) == (text.splitlines()[0] + '\n$include/b.h\n' +
+                         footer(('include', cwd + '/' + relative)))
+    text = '../shared/generated/include/a.h\n../shared/generated/include/b.h\n'
+    assert run(text) == ('../shared/generated/include/a.h\n$include/b.h\n' +
+                         footer(('include', root + '/shared/generated/include')))
+    text = '"./generated files/deep/include/a.h":12:3\n"generated files/deep/include/b.h":13:4\n'
+    assert run(text) == ('"./generated files/deep/include/a.h":12:3\n"$include/b.h":13:4\n' +
+                         footer(('include', cwd + '/generated files/deep/include')))
+    text = '\x1b[34m./' + relative + '/a.h\x1b[0m\n' + relative + '/b.h\n'
+    assert run(text) == ('\x1b[34m./' + relative + '/a.h\x1b[0m\n$include/b.h\n' +
+                         footer(('include', cwd + '/' + relative)))
+    # A short relative spelling cannot grow just because cwd is a long path.
+    text = './a\n./b\ninc/a.h\ninc/b.h\n../a\n../b\n'
+    assert run(text) == text
+    # Options, ratios, dates, URLs and shell expressions aren't path candidates.
+    text = ('--foo/bar/baz\n--foo/bar/qux\n1/10 1/10 2026/11/05\n'
+            'https://example.com/generated/include/a.h\n'
+            'https://example.com/generated/include/b.h\n'
+            '$ROOT/generated/include/a.h\n$ROOT/generated/include/b.h\n'
+            '~/generated/include/a.h\n~/generated/include/b.h\n')
+    assert run(text) == text
+    text = './' + relative + '/a.h\n' + relative + '/b.h\n' + relative + '/c.h\n'
+    assert run(text, ('-cp',)) == ('./' + relative + '/a.h\n$include/b.h\n       ↳ c.h\n' +
+                                  footer(('include', cwd + '/' + relative)))
+    assert run('./' + relative + '/a.h\n' + relative + '/b.h') == (
+        './' + relative + '/a.h\n$include/b.h' + footer(('include', cwd + '/' + relative)))
 print('Path dictionary CLI checks passed')

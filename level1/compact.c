@@ -76,6 +76,14 @@ static bool columns(const char *data, size_t length, size_t *width)
     return true;
 }
 
+/* Keep identifiers, digits, and UTF-8 word bytes together. Punctuation
+ * (including path separators) can still be used as a compaction boundary. */
+static bool word_byte(unsigned char ch)
+{
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+           (ch >= '0' && ch <= '9') || ch == '_' || ch >= 0x80;
+}
+
 bool compact_filter(void *context, const void *config, sf_line line,
                    sf_output *output)
 {
@@ -103,6 +111,41 @@ bool compact_filter(void *context, const void *config, sf_line line,
     while (common < length && common &&
            ((unsigned char)line.data[common] & 0xc0) == 0x80)
         --common;
+
+    /* If the difference splits a word, expose that entire word. Scan while
+     * ignoring SGR, so style changes do not create false word boundaries. */
+    bool in_word = false;
+    size_t word_start = 0;
+    size_t word_matched = 0;
+    size_t visible = 0;
+    for (size_t i = 0; i < common;) {
+        size_t sgr = sgr_length(line.data + i, common - i);
+        if (sgr) {
+            i += sgr;
+            continue;
+        }
+        bool word = word_byte((unsigned char)line.data[i]);
+        if (word && !in_word) {
+            word_start = i;
+            word_matched = visible;
+        }
+        in_word = word;
+        ++visible;
+        ++i;
+    }
+    size_t next = common;
+    while (next < length) {
+        size_t sgr = sgr_length(line.data + next, length - next);
+        if (!sgr)
+            break;
+        next += sgr;
+    }
+    if (in_word && ((next < length && word_byte((unsigned char)line.data[next])) ||
+                    (matched < state->previous_length &&
+                     word_byte((unsigned char)state->previous[matched])))) {
+        common = word_start;
+        matched = word_matched;
+    }
 
     size_t width = 0;
     bool compact = matched >= options->minimum_prefix && matched > 0 &&
