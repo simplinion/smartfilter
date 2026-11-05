@@ -5,6 +5,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef enum { SF_EVENT_NONE, SF_EVENT_WARNING, SF_EVENT_ERROR, SF_EVENT_NOTE } sf_event_kind;
+typedef enum {
+    SF_EVENT_PART_NONE, SF_EVENT_CONTEXT, SF_EVENT_MESSAGE, SF_EVENT_SOURCE, SF_EVENT_MARKER
+} sf_event_part;
+
+/* Borrowed for the duration of downstream callbacks; consumers that retain
+ * event metadata must copy it, including all strings. Zero means no location. */
+typedef struct {
+    size_t id;
+    sf_event_kind kind;
+    const char *file;
+    size_t line;
+    size_t column;
+    const char *function;
+    const char *message;
+} sf_event;
+
 /* A borrowed byte sequence, including the newline when present. Never assumed
  * to be NUL-terminated. Valid only for the duration of a callback. */
 typedef struct {
@@ -12,6 +29,8 @@ typedef struct {
     size_t length;
     const char *original; /* Borrowed input before rewrites; NULL for synthetic output. */
     size_t original_length;
+    const sf_event *event;
+    sf_event_part event_part;
     uint64_t hash; /* Set by the pipeline; hash of all length bytes. */
 } sf_line;
 

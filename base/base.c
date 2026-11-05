@@ -26,9 +26,14 @@ static bool dispatch(sf_pipeline *pipeline, size_t index, sf_line line)
 
 sf_line sf_line_rewrite(sf_line source, const char *data, size_t length)
 {
-    return (sf_line){.data = data, .length = length,
-        .original = source.original ? source.original : source.data,
-        .original_length = source.original ? source.original_length : source.length};
+    if (!source.original) {
+        source.original = source.data;
+        source.original_length = source.length;
+    }
+    source.data = data;
+    source.length = length;
+    source.hash = 0;
+    return source;
 }
 
 uint64_t sf_line_hash(sf_line line)

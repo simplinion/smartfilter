@@ -502,3 +502,58 @@ wybranie samych wyników nie usuwało kontekstu problemu. Można też jawnie
 podać `--show error,warning,diagnostic`. To nie przywraca linii odrzuconych
 wcześniej w levelu 0 ani stderr nieprzekazanego do filtra — dla kompilatora
 zwykle potrzebne jest `2>&1` przed pipe.
+
+Level 4 łączy diagnostyki GCC/Clang w zdarzenia. To etap budowania kontekstu:
+nie streszcza, nie deduplikuje i nie usuwa żadnych otrzymanych linii.
+Domyślnie jest wyłączony. Dostępne są dwa tryby:
+
+```sh
+# Grupowanie z metadanymi; wyjście pozostaje bajtowo takie samo:
+cmake --build . 2>&1 | smartfilter --group-diagnostics
+
+# Podgląd granic grup, również razem z poprzednimi poziomami:
+cmake --build . 2>&1 | smartfilter -cpb --classify --events
+```
+
+Przykład podglądu:
+
+```text
+[event 1 begin warning src/port.c:315:13 function=scheduler]
+src/port.c: In function 'scheduler':
+src/port.c:315:13: warning: unused variable 'x'
+  315 | const int x = 0;
+      |           ^
+[event 1 end]
+```
+
+Zdarzenie zawiera identyfikator, typ (`warning`, `error`, `note`), plik,
+linię, opcjonalną kolumnę, funkcję i komunikat. Każda przypisana linia niesie
+`sf_line.event` oraz `sf_line.event_part`: kontekst, komunikat, kod źródłowy
+lub znacznik miejsca problemu. `sf_line_rewrite` zachowuje te metadane.
+Wskaźniki i napisy są ważne tylko podczas callbacku; późniejszy poziom,
+który chce je przechowywać, musi je skopiować.
+
+Analiza używa oryginału sprzed skracania ścieżek, kompaktowania, kolorowania
+i dopisywania kategorii. Wyświetlany tekst pozostaje bez zmian. Nagłówki
+`In function`, `In member function` i `At top level` są dołączane wyłącznie
+do następnej diagnostyki z dokładnie tym samym zapisem pliku. Numery linii
+kodu z gutterem muszą pasować do lokalizacji komunikatu. W formacie Clanga
+bez numerowanego guttera linia wyglądająca jak kod wymaga potwierdzenia przez
+bezpośrednio następujący caret `^`, wyrównany do podanej kolumny. Inny plik,
+inny numer wiersza, zwykły komunikat lub niepotwierdzony fragment kończy grupę.
+Noty z własną lokalizacją są osobnymi zdarzeniami; nie są automatycznie
+przypisywane do wcześniejszego błędu z innego pliku.
+
+To konserwatywny pierwszy wariant, nie parser wszystkich formatów kompilatorów.
+Łańcuchy include/template z różnych plików, nienumerowane lub otaczające wiersze
+źródła bez potwierdzenia oraz inne nieobsługiwane formaty pozostają widoczne
+bez przypisania. Brak znacznika procesu uniemożliwia pewne rozdzielenie każdego
+przeplotu równoległych kompilacji, np. identycznych numerów linii bez nazwy pliku.
+Z tego powodu level 4 niczego jeszcze nie usuwa.
+
+Bufor kontekstu ma limit 32 linii i 256 KiB (tekst wyświetlany plus oryginał);
+analizowana linia może mieć do 16 KiB. Zbyt długie, binarne i niepasujące
+fragmenty są wypisywane bez grupowania. Osierocony kontekst jest wypisywany
+również przy EOF. Tryb `--events` dodaje znaczniki i, jeśli potrzeba, newline
+przed znacznikiem; `--group-diagnostics` nie dodaje żadnych bajtów. Linie
+odrzucone przez wcześniejsze poziomy nie mogą zostać odzyskane przez level 4.
