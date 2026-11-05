@@ -1,0 +1,49 @@
+#ifndef SMARTFILTER_BASE_H
+#define SMARTFILTER_BASE_H
+
+#include <stdbool.h>
+#include <stddef.h>
+
+/* A borrowed byte sequence, including the newline when present. Never assumed
+ * to be NUL-terminated. Valid only for the duration of a callback. */
+typedef struct {
+    const char *data;
+    size_t length;
+} sf_line;
+
+typedef struct sf_output sf_output;
+
+/* true forwards the original line; false drops it. Emitted lines go directly
+ * to the next level, synchronously, before the original is forwarded.
+ * To replace a line, emit its replacement(s) and return false. */
+typedef bool (*sf_filter_fn)(void *context, const void *config,
+                             sf_line line, sf_output *output);
+
+/* Called at EOF in pipeline order; may emit buffered lines downstream. */
+typedef void (*sf_finish_fn)(void *context, const void *config,
+                             sf_output *output);
+
+typedef struct {
+    void *context;
+    const void *config;
+    sf_filter_fn filter;
+    sf_finish_fn finish; /* Optional. */
+} sf_level;
+
+typedef bool (*sf_sink_fn)(void *context, sf_line line);
+
+/* Caller owns the levels, their contexts/configs, and the sink context. */
+typedef struct {
+    const sf_level *levels;
+    size_t count;
+    sf_sink_fn sink;
+    void *sink_context;
+    bool failed;
+} sf_pipeline;
+
+/* Output handles must not be retained after the callback returns. */
+bool sf_emit(sf_output *output, sf_line line);
+bool sf_pipeline_process(sf_pipeline *pipeline, sf_line line);
+bool sf_pipeline_finish(sf_pipeline *pipeline);
+
+#endif

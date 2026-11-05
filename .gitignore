@@ -1,6 +1,8 @@
 # Build artifacts
 *.o
 *.a
+build/*
+build-*/*
 smartfilter
 level1/smartfilter
 level2/smartfilter
