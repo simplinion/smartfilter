@@ -83,7 +83,7 @@ const char *line_group_get_summary(LineGroup *g) {
 
 CompactState *compact_create(int buffer_size, int min_group_size, double similarity_threshold) {
     if (buffer_size <= 0) buffer_size = 100;
-    if (min_group_size <= 0) min_group_size = 3;
+    if (min_group_size < 2) min_group_size = 2;  // Minimum 2 to form a group
     if (similarity_threshold <= 0) similarity_threshold = 0.6;
     
     CompactState *cs = calloc(1, sizeof(CompactState));
