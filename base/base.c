@@ -24,13 +24,30 @@ static bool dispatch(sf_pipeline *pipeline, size_t index, sf_line line)
     return !pipeline->failed;
 }
 
+uint64_t sf_line_hash(sf_line line)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (size_t i = 0; i < line.length; ++i) {
+        hash ^= (unsigned char)line.data[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+void sf_output_fail(sf_output *output)
+{
+    output->pipeline->failed = true;
+}
+
 bool sf_emit(sf_output *output, sf_line line)
 {
+    line.hash = sf_line_hash(line);
     return dispatch(output->pipeline, output->next, line);
 }
 
 bool sf_pipeline_process(sf_pipeline *pipeline, sf_line line)
 {
+    line.hash = sf_line_hash(line);
     return dispatch(pipeline, 0, line);
 }
 

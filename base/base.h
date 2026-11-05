@@ -3,12 +3,14 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* A borrowed byte sequence, including the newline when present. Never assumed
  * to be NUL-terminated. Valid only for the duration of a callback. */
 typedef struct {
     const char *data;
     size_t length;
+    uint64_t hash; /* Set by the pipeline; hash of all length bytes. */
 } sf_line;
 
 typedef struct sf_output sf_output;
@@ -42,6 +44,10 @@ typedef struct {
 } sf_pipeline;
 
 /* Output handles must not be retained after the callback returns. */
+/* Construct raw lines with designated .data and .length initializers.
+ * Pipeline entry and emit compute the hash once, before dispatch. */
+uint64_t sf_line_hash(sf_line line);
+void sf_output_fail(sf_output *output);
 bool sf_emit(sf_output *output, sf_line line);
 bool sf_pipeline_process(sf_pipeline *pipeline, sf_line line);
 bool sf_pipeline_finish(sf_pipeline *pipeline);
